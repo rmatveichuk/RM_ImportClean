@@ -38,25 +38,30 @@ global RM_IC_defTimer
 
 global RM_IC_contentHeight
 fn RM_IC_contentHeight sub = (
-    local h1 = if (isValidRollout ::roRM_IC_convert and roRM_IC_convert.open) then 175 else 24
-    local h2 = if (isValidRollout ::roRM_IC_clean   and roRM_IC_clean.open)   then 310 else 24
-    local h3 = if (isValidRollout ::roRM_IC_elem    and roRM_IC_elem.open)    then 540 else 24
+    local h1 = if (classOf ::roRM_IC_convert == RolloutClass and roRM_IC_convert.open) then 175 else 24
+    local h2 = if (classOf ::roRM_IC_clean   == RolloutClass and roRM_IC_clean.open)   then 310 else 24
+    local h3 = if (classOf ::roRM_IC_elem    == RolloutClass and roRM_IC_elem.open)    then 540 else 24
     h1 + h2 + h3 + 12
 )
 
 global RM_IC_autoResize
 fn RM_IC_autoResize = (
-    local r = ::RM_IC_MainRol
-    if r == undefined or not r.open do return false
-    local sub = r.sub_holder
-    local contentH = RM_IC_contentHeight sub
-    
-    -- 1. Сначала контейнер (убивает скроллбар)
-    sub.height = contentH
-    
-    -- 2. Затем подгоняем само окно диалога (высота шапки 34)
-    SetDialogSize r [340, contentH + 34]
-    true
+    try (
+        local r = ::RM_IC_MainRol
+        if r == undefined or not r.open do return false
+        local sub = r.sub_holder
+        local contentH = RM_IC_contentHeight sub
+        
+        -- 1. Сначала контейнер (убивает скроллбар)
+        sub.height = contentH
+        
+        -- 2. Затем подгоняем само окно диалога (высота шапки 34)
+        SetDialogSize r [340, contentH + 34]
+        true
+    ) catch (
+        format "RM_ImportClean resize error: %\n" (getCurrentException())
+        false
+    )
 )
 
 global RM_IC_deferResize
