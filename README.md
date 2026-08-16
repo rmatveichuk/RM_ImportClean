@@ -59,6 +59,12 @@ Categorizes connected geometry elements using deep geometric signature matching 
 
 ---
 
+## 📋 Backlog / Planned Features
+1. **[Модуль 2 — Чистка лишних вершин]**: Добавить опцию штатной сварки вершин (`Weld`) с настраиваемым порогом в миллиметрах (по умолчанию `0.01 мм`) для устранения открытых трещин импорта (`border edges`) без перестроения топологии.
+
+---
+
 ## 👤 Author & Support
 * **Telegram Channel**: [@refer_manage](https://t.me/refer_manage)
 * **GitHub Repository**: [RM_ImportClean](https://github.com/rmatveichuk/RM_ImportClean)
+
