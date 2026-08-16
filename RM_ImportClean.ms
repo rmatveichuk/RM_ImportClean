@@ -882,69 +882,35 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 )
 
 /*======================================================================
-    ГЛАВНОЕ ОКНО С ВКЛАДКАМИ (ТАБАМИ) И СТИЛЕМ RM TOOLS
+    ГЛАВНОЕ ОКНО СО СТАНДАРТНЫМ СТЕКОМ МОДУЛЕЙ (SUBROLLOUT)
 ======================================================================*/
 global RM_IC_MainRol
 
-rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
+rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
 (
     local isDragging = false
     local isResizing = false
     local dragStartScreen = [0,0]
     local dragStartDialog = [0,0]
-    local dragStartH = 280
+    local dragStartH = 720
 
     -- [КАСТОМНЫЙ TITLE BAR]
     dotNetControl lbl_title "System.Windows.Forms.Label" pos:[8,7] width:125 height:15
     dotNetControl lbl_line  "System.Windows.Forms.Label" pos:[135,7] width:170 height:15
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
-    -- [СТИЛЬНЫЕ ВКЛАДКИ]
-    checkButton tab1 "1. Конвертация" width:104 height:26 pos:[6,26] checked:true  tooltip:"Конвертация Mesh в Poly"
-    checkButton tab2 "2. Чистка"       width:104 height:26 pos:[114,26] checked:false tooltip:"Чистка лишних вершин и рёбер"
-    checkButton tab3 "3. Элементы"     width:110 height:26 pos:[222,26] checked:false tooltip:"Поиск и выделение одинаковых элементов"
-
-    -- [КОНТЕЙНЕР ДЛЯ АКТИВНОГО МОДУЛЯ]
-    subRollout sub_holder "" pos:[4,56] width:332 height:216
+    -- [СТАНДАРТНЫЙ SUBROLLOUT ДЛЯ ВСЕХ 3 МОДУЛЕЙ]
+    subRollout sub_holder "" pos:[4,28] width:332 height:684
     
-    -- [НИЖНИЙ РЕСАЙЗЕР ДЛЯ РУЧНОЙ РЕГУЛИРОВКИ]
-    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,272] width:340 height:8
+    -- [НИЖНИЙ РЕСАЙЗЕР ДЛЯ СВОБОДНОЙ РЕГУЛИРОВКИ ВЫСОТЫ]
+    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,712] width:340 height:8
     
     fn updateLayout h = (
         local newH = amax 200 h
         RM_IC_MainRol.height = newH
-        sub_holder.height = newH - 64
+        sub_holder.height = newH - 36
         lbl_resize.pos = [0, newH - 8]
     )
-    
-    fn showTab idx = (
-        tab1.state = (idx == 1)
-        tab2.state = (idx == 2)
-        tab3.state = (idx == 3)
-        
-        try (removeSubRollout sub_holder roRM_IC_convert) catch()
-        try (removeSubRollout sub_holder roRM_IC_clean)   catch()
-        try (removeSubRollout sub_holder roRM_IC_elem)    catch()
-        
-        case idx of (
-            1: (
-                addSubRollout sub_holder roRM_IC_convert rolledUp:false
-                updateLayout 280
-            )
-            2: (
-                addSubRollout sub_holder roRM_IC_clean rolledUp:false
-                updateLayout 430
-            )
-            3: (
-                addSubRollout sub_holder roRM_IC_elem rolledUp:false
-                updateLayout 680
-            )
-        )
-    )
-    
-    on tab1 changed st do ( showTab 1 )
-    on tab2 changed st do ( showTab 2 )
-    on tab3 changed st do ( showTab 3 )
     
     on RM_IC_MainRol lbuttondown pt do (
         if pt.y > (RM_IC_MainRol.height - 12) then (
@@ -1022,7 +988,10 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
         lbl_resize.BackColor = bgCol
         lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
         
-        showTab 1
+        -- Стек модулей (1-й раскрыт, 2-й и 3-й свернуты):
+        addSubRollout sub_holder roRM_IC_convert rolledUp:false
+        addSubRollout sub_holder roRM_IC_clean   rolledUp:true
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:true
     )
 )
 
