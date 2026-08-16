@@ -34,20 +34,14 @@ global rm_ic_f2e = #()   -- полигон -> индекс элемента
 global rm_ic_e2g = #()   -- элемент -> индекс группы
 global rm_ic_g2row = #() -- группа  -> строка в multiListBox
 
-global RM_IC_titleH  = 24
-global RM_IC_gap     = 4
-global RM_IC_chromeH = 34
 global RM_IC_defTimer
 
 global RM_IC_contentHeight
 fn RM_IC_contentHeight sub = (
-    local h = 0
-    if sub != undefined and sub.rollouts != undefined do (
-        for ro in sub.rollouts do (
-            h += RM_IC_titleH + RM_IC_gap + (if ro.open then (ro.height + 4) else 0)
-        )
-    )
-    h + 8
+    local h1 = if (isValidRollout ::roRM_IC_convert and roRM_IC_convert.open) then 175 else 24
+    local h2 = if (isValidRollout ::roRM_IC_clean   and roRM_IC_clean.open)   then 310 else 24
+    local h3 = if (isValidRollout ::roRM_IC_elem    and roRM_IC_elem.open)    then 540 else 24
+    h1 + h2 + h3 + 12
 )
 
 global RM_IC_autoResize
@@ -57,11 +51,11 @@ fn RM_IC_autoResize = (
     local sub = r.sub_holder
     local contentH = RM_IC_contentHeight sub
     
-    -- 1. Сначала растягиваем контейнер (убивает скроллбар)
+    -- 1. Сначала контейнер (убивает скроллбар)
     sub.height = contentH
     
-    -- 2. Затем подгоняем само окно диалога
-    SetDialogSize r [340, contentH + RM_IC_chromeH]
+    -- 2. Затем подгоняем само окно диалога (высота шапки 34)
+    SetDialogSize r [340, contentH + 34]
     true
 )
 
@@ -69,7 +63,7 @@ global RM_IC_deferResize
 fn RM_IC_deferResize = (
     if RM_IC_defTimer == undefined do (
         RM_IC_defTimer = dotNetObject "System.Windows.Forms.Timer"
-        RM_IC_defTimer.Interval = 20
+        RM_IC_defTimer.Interval = 30
         dotNet.addEventHandler RM_IC_defTimer "Tick" (fn onTick s e = (
             RM_IC_defTimer.Stop()
             RM_IC_autoResize()
