@@ -34,23 +34,48 @@ global rm_ic_f2e = #()   -- полигон -> индекс элемента
 global rm_ic_e2g = #()   -- элемент -> индекс группы
 global rm_ic_g2row = #() -- группа  -> строка в multiListBox
 
-global ro_convert_rolled = false
-global ro_clean_rolled   = true
-global ro_elem_rolled    = false
+global RM_IC_titleH  = 24
+global RM_IC_gap     = 4
+global RM_IC_chromeH = 34
+global RM_IC_defTimer
+
+global RM_IC_contentHeight
+fn RM_IC_contentHeight sub = (
+    local h = 0
+    if sub != undefined and sub.rollouts != undefined do (
+        for ro in sub.rollouts do (
+            h += RM_IC_titleH + RM_IC_gap + (if ro.open then (ro.height + 4) else 0)
+        )
+    )
+    h + 8
+)
 
 global RM_IC_autoResize
 fn RM_IC_autoResize = (
-    try (
-        if (::RM_IC_MainRol == undefined) do return false
-        local h1 = if ro_convert_rolled then 24 else 180
-        local h2 = if ro_clean_rolled   then 24 else 315
-        local h3 = if ro_elem_rolled    then 24 else 545
-        
-        local totalH = 34 + h1 + h2 + h3 + 12
-        SetDialogSize RM_IC_MainRol [340, totalH]
-        try (RM_IC_MainRol.sub_holder.height = totalH - 30) catch()
-        totalH
-    ) catch ()
+    local r = ::RM_IC_MainRol
+    if r == undefined or not r.open do return false
+    local sub = r.sub_holder
+    local contentH = RM_IC_contentHeight sub
+    
+    -- 1. Сначала растягиваем контейнер (убивает скроллбар)
+    sub.height = contentH
+    
+    -- 2. Затем подгоняем само окно диалога
+    SetDialogSize r [340, contentH + RM_IC_chromeH]
+    true
+)
+
+global RM_IC_deferResize
+fn RM_IC_deferResize = (
+    if RM_IC_defTimer == undefined do (
+        RM_IC_defTimer = dotNetObject "System.Windows.Forms.Timer"
+        RM_IC_defTimer.Interval = 20
+        dotNet.addEventHandler RM_IC_defTimer "Tick" (fn onTick s e = (
+            RM_IC_defTimer.Stop()
+            RM_IC_autoResize()
+        ))
+    )
+    RM_IC_defTimer.Start()
 )
 
 global RM_IC_floater
@@ -643,8 +668,7 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
     )
     
     on roRM_IC_clean rolledUp state do (
-        ro_clean_rolled = state
-        RM_IC_autoResize()
+        RM_IC_deferResize()
     )
 )
 
@@ -905,8 +929,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     )
     
     on roRM_IC_elem rolledUp state do (
-        ro_elem_rolled = state
-        RM_IC_autoResize()
+        RM_IC_deferResize()
     )
 )
 
@@ -977,11 +1000,11 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:770
         lbl_line.BackColor = bgCol
         lbl_line.Font = f
         
-        addSubRollout sub_holder roRM_IC_convert rolledUp:ro_convert_rolled
-        addSubRollout sub_holder roRM_IC_clean   rolledUp:ro_clean_rolled
-        addSubRollout sub_holder roRM_IC_elem    rolledUp:ro_elem_rolled
+        addSubRollout sub_holder roRM_IC_convert rolledUp:false
+        addSubRollout sub_holder roRM_IC_clean   rolledUp:true
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:false
         
-        RM_IC_autoResize()
+        RM_IC_deferResize()
     )
 )
 
@@ -989,7 +1012,7 @@ fn RM_IC_openUI =
 (
     try (destroyDialog RM_IC_MainRol) catch()
     createDialog RM_IC_MainRol style:#()
-    RM_IC_autoResize()
+    RM_IC_deferResize()
 )
 
 RM_IC_openUI()
