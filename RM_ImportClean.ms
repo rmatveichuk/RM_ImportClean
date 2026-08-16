@@ -633,8 +633,6 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         button   btnGo "АНАЛИЗИРОВАТЬ ВЫДЕЛЕННЫЙ ОБЪЕКТ" width:312 height:28
     )
     label lbInfo "объект не проанализирован" height:16
-    
-    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:312 height:28 tooltip:"Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии"
 
     group "Группы одинаковых элементов"
     (
@@ -649,6 +647,8 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         spinner spCnt  "и повторов не менее:" range:[1,10000,1] type:#integer fieldWidth:60
         button btnSelSize "ВЫДЕЛИТЬ по фильтру" width:296 height:26
     )
+    
+    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:312 height:28 tooltip:"Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии"
     
     button btnDel "УДАЛИТЬ" width:152 height:30 across:2 tooltip:"Удалить выделенные полигоны/элементы"
     button btnDetach "ОТДЕЛИТЬ (Detach)" width:152 height:30 tooltip:"Отделить выделенное в отдельный новый объект"
