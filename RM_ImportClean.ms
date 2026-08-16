@@ -1,4 +1,4 @@
-﻿/***********************************************************************
+/***********************************************************************
     RM_ImportClean  v1.6
     Набор инструментов подготовки геометрии, импортированной из CAD/Revit.
 
@@ -470,8 +470,34 @@ fn rm_ic_selectFaces obj isPoly bits =
 )
 
 /*======================================================================
-    ИНТЕРФЕЙС
+    ИНТЕРФЕЙС & АВТОПОДГОНКА ВЫСОТЫ
 ======================================================================*/
+global RM_IC_HEADER_H = 23      -- замерено: H0=115, H1=395
+global RM_IC_PADDING  = 46      -- замерено, сходится по обеим точкам
+
+fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
+(
+    if not (classOf ro == RolloutClass and ro.open) do return OK
+    local need = RM_IC_PADDING
+    for r in sub.rollouts do
+    (
+        local isOpen = r.open
+        if (togglingRollout != unsupplied) and (r == togglingRollout) do isOpen = not isOpen
+        need += if isOpen then r.height else RM_IC_HEADER_H
+    )
+
+    local cap = (sysInfo.desktopSize.y as integer) - 80
+    if need > cap do need = cap
+
+    local ds = getDialogSize ro
+    if (abs (ds.y - need)) > 1 do (
+        setDialogSize ro [ds.x, need]
+        ro.sub_holder.height = need - 36
+        ro.lbl_resize.pos = [0, need - 8]
+    )
+    OK
+)
+
 rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" width:330
 (
     label lb1 "Заменяет обычный Convert to Poly, который" align:#left
@@ -509,6 +535,10 @@ rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" wi
         redrawViews()
         lbConvRes.text = ("сконвертировано: " + ok as string + " из " + objs.count as string + \
                           "   (" + (formattedPrint ((timeStamp()-t0)/1000.0) format:".1f") + " c)")
+    )
+
+    on roRM_IC_convert rolledUp state do (
+        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder togglingRollout:roRM_IC_convert
     )
 )
 
@@ -621,6 +651,10 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
     (
         if chkUndo.checked then (undo "RM_ImportClean clean" on (doJob false))
         else (undo off (doJob false))
+    )
+
+    on roRM_IC_clean rolledUp state do (
+        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder togglingRollout:roRM_IC_clean
     )
 )
 
@@ -879,6 +913,10 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
         lbInfo.text = "объект изменён - проанализируй заново"
     )
+
+    on roRM_IC_elem rolledUp state do (
+        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder togglingRollout:roRM_IC_elem
+    )
 )
 
 /*======================================================================
@@ -906,8 +944,8 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
     dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,712] width:340 height:8
     
     fn updateLayout h = (
-        local newH = amax 200 h
-        RM_IC_MainRol.height = newH
+        local newH = amax 115 h
+        setDialogSize RM_IC_MainRol [340, newH]
         sub_holder.height = newH - 36
         lbl_resize.pos = [0, newH - 8]
     )
@@ -992,6 +1030,9 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         addSubRollout sub_holder roRM_IC_convert rolledUp:false
         addSubRollout sub_holder roRM_IC_clean   rolledUp:true
         addSubRollout sub_holder roRM_IC_elem    rolledUp:true
+
+        -- Автоподгонка начальной высоты:
+        RM_IC_fitHeight RM_IC_MainRol sub_holder
     )
 )
 
