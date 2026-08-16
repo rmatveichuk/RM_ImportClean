@@ -34,11 +34,13 @@
     
     for c in combos do
     (
+        -- 1. Установка состояния через события роллаутов:
         sub.rollouts[1].open = c[1]
         sub.rollouts[2].open = c[2]
         sub.rollouts[3].open = c[3]
         windows.processPostedMessages()
         
+        -- 2. Вызов fitHeight (как при реальном событии клика по заголовку):
         RM_IC_fitHeight ro sub
         windows.processPostedMessages()
         
