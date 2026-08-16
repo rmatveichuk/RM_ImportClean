@@ -472,12 +472,14 @@ fn rm_ic_selectFaces obj isPoly bits =
 /*======================================================================
     ИНТЕРФЕЙС & АВТОПОДГОНКА ВЫСОТЫ
 ======================================================================*/
-global RM_IC_HEADER_H = 23      -- замерено: H0=115, H1=395
-global RM_IC_PADDING  = 46      -- замерено, сходится по обеим точкам
+global RM_IC_HEADER_H   = 23                 -- замерено: H0=115, H1=395
+global RM_IC_PADDING    = 46                 -- замерено, сходится по обеим точкам
+global RM_IC_HOLDER_GAP = RM_IC_PADDING - 10 -- 36 px (28 px заголовок + 8 px ресайзер; 10 px запас контейнера)
+global RM_IC_RESIZE_OFS = 8                  -- 8 px (смещение метки ресайза от низа)
 
 fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
 (
-    if not (classOf ro == RolloutClass and ro.open) do return OK
+    if ro == undefined or (classOf ro != RolloutClass) do return OK
     local need = RM_IC_PADDING
     for r in sub.rollouts do
     (
@@ -492,8 +494,16 @@ fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
     local ds = getDialogSize ro
     if (abs (ds.y - need)) > 1 do (
         setDialogSize ro [ds.x, need]
-        ro.sub_holder.height = need - 36
-        ro.lbl_resize.pos = [0, need - 8]
+        ro.sub_holder.height = need - RM_IC_HOLDER_GAP
+        ro.lbl_resize.pos = [0, need - RM_IC_RESIZE_OFS]
+
+        -- Защита от вылета за нижнюю кромку монитора:
+        local curPos = GetDialogPos ro
+        local maxBottom = (sysInfo.desktopSize.y as integer) - 40
+        if (curPos.y + need) > maxBottom do (
+            local newY = amax 40 (maxBottom - need)
+            SetDialogPos ro [curPos.x, newY]
+        )
     )
     OK
 )
@@ -946,8 +956,8 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
     fn updateLayout h = (
         local newH = amax 115 h
         setDialogSize RM_IC_MainRol [340, newH]
-        sub_holder.height = newH - 36
-        lbl_resize.pos = [0, newH - 8]
+        sub_holder.height = newH - RM_IC_HOLDER_GAP
+        lbl_resize.pos = [0, newH - RM_IC_RESIZE_OFS]
     )
     
     on RM_IC_MainRol lbuttondown pt do (
