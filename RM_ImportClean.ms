@@ -30,6 +30,10 @@ try (
     )
 ) catch()
 
+global rm_ic_f2e = #()   -- полигон -> индекс элемента
+global rm_ic_e2g = #()   -- элемент -> индекс группы
+global rm_ic_g2row = #() -- группа  -> строка в multiListBox
+
 global RM_IC_floater
 global rm_ic_ef_obj    = undefined
 global rm_ic_ef_poly   = true
@@ -616,6 +620,8 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         button   btnGo "АНАЛИЗИРОВАТЬ ВЫДЕЛЕННЫЙ ОБЪЕКТ" width:312 height:28
     )
     label lbInfo "объект не проанализирован" height:16
+    
+    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:312 height:28 tooltip:"Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии"
 
     group "Группы одинаковых элементов"
     (
@@ -641,7 +647,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     fn refreshList =
     (
         local g = rm_ic_ef_groups
-        if g.count == 0 do (mlbMap = #(); mlb.items = #(); return false)
+        if g.count == 0 do (mlbMap = #(); rm_ic_g2row = #(); mlb.items = #(); return false)
         local idx = for i = 1 to g.count collect i
         if rbSort.state == 1 then
             qsort idx (fn rm_cs a b = (if rm_ic_ef_groups[a][3] < rm_ic_ef_groups[b][3] then -1 \
@@ -650,6 +656,10 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
             qsort idx (fn rm_cc a b = (if rm_ic_ef_groups[a][2].count > rm_ic_ef_groups[b][2].count then -1 \
                                        else if rm_ic_ef_groups[a][2].count < rm_ic_ef_groups[b][2].count then 1 else 0))
         mlbMap = idx
+        rm_ic_g2row = #()
+        rm_ic_g2row[g.count] = 0
+        for row = 1 to idx.count do rm_ic_g2row[idx[row]] = row
+        
         mlb.items = for i in idx collect
         (
             local gr = rm_ic_ef_groups[i]
@@ -677,7 +687,10 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         )
         local t0 = timeStamp()
         disableSceneRedraw()
-        try (rm_ic_analyze o chkOrient.checked spTol.value)
+        try (
+            rm_ic_analyze o chkOrient.checked spTol.value
+            rm_ic_buildLookups o rm_ic_ef_poly
+        )
         catch (format "RM_ImportClean elem ERROR: %\n" (getCurrentException()))
         enableSceneRedraw()
 
@@ -688,6 +701,59 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
                        " / в повторах " + dup as string)
         refreshList()
         lbRes.text = ("анализ " + (formattedPrint ((timeStamp()-t0)/1000.0) format:".1f") + " c")
+    )
+
+    on btnFromVP pressed do
+    (
+        local o = rm_ic_ef_obj
+        if not isValidNode o do (
+            messageBox "Объект не выбран или был удален." title:"RM_ImportClean"
+            return false
+        )
+        if rm_ic_f2e.count == 0 do (
+            lbRes.text = "сначала выполните анализ"
+            return false
+        )
+
+        local isPoly = (classOf o.baseObject == Editable_Poly)
+        local sel = if isPoly then (polyop.getFaceSelection o) else (getFaceSelection o)
+        if sel.numberSet == 0 do (
+            lbRes.text = "во вьюпорте ничего не выделено"
+            return false
+        )
+
+        local gset = #{}
+        for f in sel do
+        (
+            local ei = rm_ic_f2e[f]
+            if ei != undefined and ei > 0 do
+            (
+                local gi = rm_ic_e2g[ei]
+                if gi != undefined and gi > 0 do gset[gi] = true
+            )
+        )
+        if gset.numberSet == 0 do (
+            lbRes.text = "элемент не принадлежит ни одной группе"
+            return false
+        )
+
+        local rows = #{}
+        for gi in gset do (
+            if rm_ic_g2row[gi] != undefined do rows[rm_ic_g2row[gi]] = true
+        )
+        mlb.selection = rows
+
+        local bits = #{}
+        local nElems = 0
+        for gi in gset do (
+            for ei in rm_ic_ef_groups[gi][2] do (
+                bits += rm_ic_ef_elems[ei]
+                nElems += 1
+            )
+        )
+
+        rm_ic_selectFaces o rm_ic_ef_poly bits
+        lbRes.text = ("найдено: " + nElems as string + " эл., " + bits.numberSet as string + " пол.")
     )
 
     on rbSort changed st do refreshList()
@@ -740,7 +806,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
             )
             redrawViews()
             lbRes.text = ("удалено полигонов: " + bits.numberSet as string + " (нужен повторный анализ)")
-            rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); mlbMap = #(); mlb.items = #()
+            rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
             lbInfo.text = "объект изменён - проанализируй заново"
         )
     )
@@ -790,7 +856,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         if isValidNode newObj do select newObj
         
         lbRes.text = ("отделено: " + (if isValidNode newObj then newObj.name else newName) + " (" + cnt as string + " пол.)")
-        rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); mlbMap = #(); mlb.items = #()
+        rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
         lbInfo.text = "объект изменён - проанализируй заново"
     )
 )
@@ -800,7 +866,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 ======================================================================*/
 global RM_IC_MainRol
 
-rollout RM_IC_MainRol "RM ImportClean" width:340 height:680
+rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
 (
     local isDragging = false
     local dragStartScreen = [0,0]
@@ -812,7 +878,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:680
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
     -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ]
-    subRollout sub_holder "" pos:[4,28] width:332 height:648
+    subRollout sub_holder "" pos:[4,28] width:332 height:678
     
     on RM_IC_MainRol lbuttondown pt do (
         isDragging = true

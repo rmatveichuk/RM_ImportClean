@@ -24,6 +24,7 @@ Cleans up millions of redundant vertices and coplanar edges without damaging mod
 ### 3. 🔍 Identical Element Analyzer & Filter
 Categorizes connected geometry elements using deep geometric signature matching (vertex/polygon counts, sorted centroid distance profiles, and bounding box dimensions).
 * **Duplicate Detection**: Identifies repeated components (windows, bolts, mullions, panels, imported dust/artifacts).
+* **Viewport-to-List Reverse Search**: Select any single element in the viewport and click **"НАЙТИ ТАКИЕ ЖЕ (по выделению)"** to instantly highlight its group in the list and select all identical clones across the scene.
 * **Multi-Criteria Sorting**: Sort by element size (smallest first) or frequency (most repeated first).
 * **Fast Bounding Size Filter**: Instantly select all geometry elements smaller than a specified size threshold.
 * **Delete & Detach**:
