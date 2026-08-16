@@ -476,6 +476,8 @@ global RM_IC_HEADER_H   = 23                 -- замерено: H0=115, H1=395
 global RM_IC_PADDING    = 46                 -- замерено, сходится по обеим точкам
 global RM_IC_HOLDER_GAP = RM_IC_PADDING - 10 -- 36 px (28 px заголовок + 8 px ресайзер; 10 px запас контейнера)
 global RM_IC_RESIZE_OFS = 8                  -- 8 px (смещение метки ресайза от низа)
+global RM_IC_MARGIN_TOP = 40                 -- 40 px запас от верхнего края экрана
+global RM_IC_MARGIN_BOT = 40                 -- 40 px запас от панели задач Windows
 
 fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
 (
@@ -488,7 +490,8 @@ fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
         need += if isOpen then r.height else RM_IC_HEADER_H
     )
 
-    local cap = (sysInfo.desktopSize.y as integer) - 80
+    local screenH = sysInfo.desktopSize.y as integer
+    local cap = screenH - (RM_IC_MARGIN_TOP + RM_IC_MARGIN_BOT)
     if need > cap do need = cap
 
     local ds = getDialogSize ro
@@ -499,9 +502,9 @@ fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
 
         -- Защита от вылета за нижнюю кромку монитора:
         local curPos = GetDialogPos ro
-        local maxBottom = (sysInfo.desktopSize.y as integer) - 40
+        local maxBottom = screenH - RM_IC_MARGIN_BOT
         if (curPos.y + need) > maxBottom do (
-            local newY = amax 40 (maxBottom - need)
+            local newY = amax RM_IC_MARGIN_TOP (maxBottom - need)
             SetDialogPos ro [curPos.x, newY]
         )
     )
