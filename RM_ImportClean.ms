@@ -882,15 +882,17 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 )
 
 /*======================================================================
-    ГЛАВНОЕ ОКНО С КАСТОМНОЙ ШАПКОЙ (СТАЙЛИНГ RM TOOLS) И ДИНАМИЧЕСКИМ РАЗМЕРОМ
+    ГЛАВНОЕ ОКНО С КАСТОМНОЙ ШАПКОЙ (СТАЙЛИНГ RM TOOLS)
 ======================================================================*/
 global RM_IC_MainRol
 
 rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
 (
     local isDragging = false
+    local isResizing = false
     local dragStartScreen = [0,0]
     local dragStartDialog = [0,0]
+    local dragStartH = 710
 
     -- [КАСТОМНЫЙ TITLE BAR & BORDER]
     dotNetControl lbl_title "System.Windows.Forms.Label" pos:[8,7] width:125 height:15
@@ -898,23 +900,51 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
     -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ]
-    subRollout sub_holder "" pos:[4,28] width:332 height:678
+    subRollout sub_holder "" pos:[4,28] width:332 height:670
     
-    on RM_IC_MainRol resized size do (
-        sub_holder.width = amax 300 (size.x - 8)
-        sub_holder.height = amax 100 (size.y - 32)
-        btn_close.pos.x = size.x - 28
-        lbl_line.width = amax 20 (size.x - 170)
+    -- [НИЖНИЙ РЕСАЙЗЕР ДЛЯ ПЕРЕТАСКИВАНИЯ ПО ВЫСОТЕ]
+    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,700] width:340 height:10
+    
+    fn updateLayout h = (
+        local newH = amax 200 h
+        RM_IC_MainRol.height = newH
+        sub_holder.height = newH - 38
+        lbl_resize.pos = [0, newH - 10]
     )
     
     on RM_IC_MainRol lbuttondown pt do (
-        isDragging = true
-        dragStartScreen = mouse.screenpos
-        dragStartDialog = GetDialogPos RM_IC_MainRol
+        if pt.y > (RM_IC_MainRol.height - 12) then (
+            isResizing = true
+            dragStartScreen = mouse.screenpos
+            dragStartH = RM_IC_MainRol.height
+        ) else (
+            isDragging = true
+            dragStartScreen = mouse.screenpos
+            dragStartDialog = GetDialogPos RM_IC_MainRol
+        )
     )
-    on RM_IC_MainRol lbuttonup pt do ( isDragging = false )
+    on RM_IC_MainRol lbuttonup pt do ( 
+        isDragging = false 
+        isResizing = false
+    )
     on RM_IC_MainRol mousemove pt do (
-        if isDragging do SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
+        if isResizing then (
+            updateLayout (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
+        ) else if isDragging do (
+            SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
+        )
+    )
+    
+    on lbl_resize MouseDown arg do (
+        isResizing = true
+        dragStartScreen = mouse.screenpos
+        dragStartH = RM_IC_MainRol.height
+    )
+    on lbl_resize MouseUp arg do ( isResizing = false )
+    on lbl_resize MouseMove arg do (
+        if isResizing do (
+            updateLayout (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
+        )
     )
     
     on lbl_title MouseDown arg do (
@@ -950,21 +980,26 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
         lbl_title.BackColor = bgCol
         lbl_title.Font = f
         
-        lbl_line.text = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
+        lbl_line.text = ":::::::::::::::::::::::::"
         lbl_line.ForeColor = cColor
         lbl_line.BackColor = bgCol
         lbl_line.Font = f
         
+        lbl_resize.BackColor = bgCol
+        lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
+        
         addSubRollout sub_holder roRM_IC_convert rolledUp:false
         addSubRollout sub_holder roRM_IC_clean   rolledUp:true
         addSubRollout sub_holder roRM_IC_elem    rolledUp:false
+        
+        updateLayout RM_IC_MainRol.height
     )
 )
 
 fn RM_IC_openUI =
 (
     try (destroyDialog RM_IC_MainRol) catch()
-    createDialog RM_IC_MainRol style:#(#style_resizing) minSize:[340, 200]
+    createDialog RM_IC_MainRol style:#()
 )
 
 RM_IC_openUI()
