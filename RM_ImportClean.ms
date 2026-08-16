@@ -630,28 +630,28 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     (
         checkbox chkOrient "Учитывать поворот (строже)" checked:false
         spinner  spTol "Допуск совпадения:" range:[0.0001,1000.0,0.5] type:#float scale:0.01 fieldWidth:60
-        button   btnGo "АНАЛИЗИРОВАТЬ ВЫДЕЛЕННЫЙ ОБЪЕКТ" width:312 height:28
+        button   btnGo "АНАЛИЗИРОВАТЬ ВЫДЕЛЕННЫЙ ОБЪЕКТ" width:299 height:28
     )
     label lbInfo "объект не проанализирован" height:16
 
     group "Группы одинаковых элементов"
     (
         radiobuttons rbSort labels:#("мелкие сверху","частые сверху") default:1 columns:2
-        multiListBox mlb "" height:12 width:308
+        multiListBox mlb "" height:12 width:299
     )
-    button btnSelGrp "ВЫДЕЛИТЬ отмеченные группы" width:312 height:28
+    button btnSelGrp "ВЫДЕЛИТЬ отмеченные группы" width:299 height:28
 
     group "Быстрый фильтр по размеру"
     (
         spinner spSize "Габарит меньше:" range:[0.0,1e9,5.0] type:#float scale:0.1 fieldWidth:60
         spinner spCnt  "и повторов не менее:" range:[1,10000,1] type:#integer fieldWidth:60
-        button btnSelSize "ВЫДЕЛИТЬ по фильтру" width:296 height:28
     )
+    button btnSelSize "ВЫДЕЛИТЬ по фильтру" width:299 height:28
     
-    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:312 height:28 tooltip:"Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии"
+    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:299 height:28 tooltip:"Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии"
     
-    button btnDel "УДАЛИТЬ" width:153 height:28 across:2 tooltip:"Удалить выделенные полигоны/элементы"
-    button btnDetach "ОТДЕЛИТЬ (Detach)" width:153 height:28 tooltip:"Отделить выделенное в отдельный новый объект"
+    button btnDel "УДАЛИТЬ" width:150 height:28 across:2 tooltip:"Удалить выделенные полигоны/элементы"
+    button btnDetach "ОТДЕЛИТЬ (Detach)" width:150 height:28 tooltip:"Отделить выделенное в отдельный новый объект"
     label lbRes "" height:16
 
     -- карта "строка списка -> индекс группы" (multiListBox не имеет .tag)
@@ -950,7 +950,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
         
         addSubRollout sub_holder roRM_IC_convert rolledUp:false
         addSubRollout sub_holder roRM_IC_clean   rolledUp:true
-        addSubRollout sub_holder roRM_IC_elem    rolledUp:true
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:false
     )
 )
 
