@@ -34,6 +34,25 @@ global rm_ic_f2e = #()   -- полигон -> индекс элемента
 global rm_ic_e2g = #()   -- элемент -> индекс группы
 global rm_ic_g2row = #() -- группа  -> строка в multiListBox
 
+global ro_convert_rolled = false
+global ro_clean_rolled   = true
+global ro_elem_rolled    = false
+
+global RM_IC_autoResize
+fn RM_IC_autoResize = (
+    try (
+        if (::RM_IC_MainRol == undefined) do return false
+        local h1 = if ro_convert_rolled then 24 else 180
+        local h2 = if ro_clean_rolled   then 24 else 315
+        local h3 = if ro_elem_rolled    then 24 else 545
+        
+        local totalH = 34 + h1 + h2 + h3 + 12
+        SetDialogSize RM_IC_MainRol [340, totalH]
+        try (RM_IC_MainRol.sub_holder.height = totalH - 30) catch()
+        totalH
+    ) catch ()
+)
+
 global RM_IC_floater
 global rm_ic_ef_obj    = undefined
 global rm_ic_ef_poly   = true
@@ -622,6 +641,11 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
         if chkUndo.checked then (undo "RM_ImportClean clean" on (doJob false))
         else (undo off (doJob false))
     )
+    
+    on roRM_IC_clean rolledUp state do (
+        ro_clean_rolled = state
+        RM_IC_autoResize()
+    )
 )
 
 rollout roRM_IC_elem "3. Одинаковые элементы" width:330
@@ -879,6 +903,11 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
         lbInfo.text = "объект изменён - проанализируй заново"
     )
+    
+    on roRM_IC_elem rolledUp state do (
+        ro_elem_rolled = state
+        RM_IC_autoResize()
+    )
 )
 
 /*======================================================================
@@ -886,13 +915,11 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 ======================================================================*/
 global RM_IC_MainRol
 
-rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
+rollout RM_IC_MainRol "RM ImportClean" width:340 height:770
 (
     local isDragging = false
-    local isResizing = false
     local dragStartScreen = [0,0]
     local dragStartDialog = [0,0]
-    local dragStartH = 710
 
     -- [КАСТОМНЫЙ TITLE BAR & BORDER]
     dotNetControl lbl_title "System.Windows.Forms.Label" pos:[8,7] width:125 height:15
@@ -900,51 +927,16 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
     -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ]
-    subRollout sub_holder "" pos:[4,28] width:332 height:670
-    
-    -- [НИЖНИЙ РЕСАЙЗЕР ДЛЯ ПЕРЕТАСКИВАНИЯ ПО ВЫСОТЕ]
-    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,700] width:340 height:10
-    
-    fn updateLayout h = (
-        local newH = amax 200 h
-        RM_IC_MainRol.height = newH
-        sub_holder.height = newH - 38
-        lbl_resize.pos = [0, newH - 10]
-    )
+    subRollout sub_holder "" pos:[4,28] width:332 height:730
     
     on RM_IC_MainRol lbuttondown pt do (
-        if pt.y > (RM_IC_MainRol.height - 12) then (
-            isResizing = true
-            dragStartScreen = mouse.screenpos
-            dragStartH = RM_IC_MainRol.height
-        ) else (
-            isDragging = true
-            dragStartScreen = mouse.screenpos
-            dragStartDialog = GetDialogPos RM_IC_MainRol
-        )
-    )
-    on RM_IC_MainRol lbuttonup pt do ( 
-        isDragging = false 
-        isResizing = false
-    )
-    on RM_IC_MainRol mousemove pt do (
-        if isResizing then (
-            updateLayout (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
-        ) else if isDragging do (
-            SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
-        )
-    )
-    
-    on lbl_resize MouseDown arg do (
-        isResizing = true
+        isDragging = true
         dragStartScreen = mouse.screenpos
-        dragStartH = RM_IC_MainRol.height
+        dragStartDialog = GetDialogPos RM_IC_MainRol
     )
-    on lbl_resize MouseUp arg do ( isResizing = false )
-    on lbl_resize MouseMove arg do (
-        if isResizing do (
-            updateLayout (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
-        )
+    on RM_IC_MainRol lbuttonup pt do ( isDragging = false )
+    on RM_IC_MainRol mousemove pt do (
+        if isDragging do SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
     )
     
     on lbl_title MouseDown arg do (
@@ -985,14 +977,11 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
         lbl_line.BackColor = bgCol
         lbl_line.Font = f
         
-        lbl_resize.BackColor = bgCol
-        lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
+        addSubRollout sub_holder roRM_IC_convert rolledUp:ro_convert_rolled
+        addSubRollout sub_holder roRM_IC_clean   rolledUp:ro_clean_rolled
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:ro_elem_rolled
         
-        addSubRollout sub_holder roRM_IC_convert rolledUp:false
-        addSubRollout sub_holder roRM_IC_clean   rolledUp:true
-        addSubRollout sub_holder roRM_IC_elem    rolledUp:false
-        
-        updateLayout RM_IC_MainRol.height
+        RM_IC_autoResize()
     )
 )
 
@@ -1000,6 +989,7 @@ fn RM_IC_openUI =
 (
     try (destroyDialog RM_IC_MainRol) catch()
     createDialog RM_IC_MainRol style:#()
+    RM_IC_autoResize()
 )
 
 RM_IC_openUI()
