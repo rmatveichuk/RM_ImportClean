@@ -36,14 +36,14 @@ global rm_ic_g2row = #() -- группа  -> строка в multiListBox
 
 global ro_convert_open = true
 global ro_clean_open   = false
-global ro_elem_open    = true
+global ro_elem_open    = false
 
-global RM_IC_contentHeight
-fn RM_IC_contentHeight = (
+global RM_IC_calcHeight
+fn RM_IC_calcHeight = (
     local h1 = if ro_convert_open then 175 else 24
     local h2 = if ro_clean_open   then 310 else 24
     local h3 = if ro_elem_open    then 540 else 24
-    h1 + h2 + h3 + 12
+    h1 + h2 + h3 + 12 + 34
 )
 
 global RM_IC_autoResize
@@ -51,14 +51,8 @@ fn RM_IC_autoResize = (
     try (
         local r = ::RM_IC_MainRol
         if r == undefined or not r.open do return false
-        local sub = r.sub_holder
-        local contentH = RM_IC_contentHeight()
-        
-        -- 1. Сначала контейнер (убивает скроллбар)
-        sub.height = contentH
-        
-        -- 2. Затем подгоняем само окно диалога (высота шапки 34)
-        SetDialogSize r [340, contentH + 34]
+        local newH = RM_IC_calcHeight()
+        r.updateHeight newH
         true
     ) catch (
         format "RM_ImportClean resize error: %\n" (getCurrentException())
@@ -928,28 +922,63 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 ======================================================================*/
 global RM_IC_MainRol
 
-rollout RM_IC_MainRol "RM ImportClean" width:340 height:770
+rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
 (
     local isDragging = false
+    local isResizing = false
     local dragStartScreen = [0,0]
     local dragStartDialog = [0,0]
+    local dragStartH = 280
 
-    -- [КАСТОМНЫЙ TITLE BAR & BORDER]
+    -- [КАСТОМНЫЙ TITLE BAR]
     dotNetControl lbl_title "System.Windows.Forms.Label" pos:[8,7] width:125 height:15
     dotNetControl lbl_line  "System.Windows.Forms.Label" pos:[135,7] width:170 height:15
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
     -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ]
-    subRollout sub_holder "" pos:[4,28] width:332 height:730
+    subRollout sub_holder "" pos:[4,28] width:332 height:244
+    
+    -- [НИЖНЯЯ ОБЛАСТЬ ДЛЯ РАСТЯЖКИ ОКНА]
+    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,272] width:340 height:8
+    
+    fn updateHeight h = (
+        local newH = amax 120 h
+        SetDialogSize RM_IC_MainRol [340, newH]
+        sub_holder.height = newH - 36
+        lbl_resize.pos = [0, newH - 8]
+    )
     
     on RM_IC_MainRol lbuttondown pt do (
-        isDragging = true
-        dragStartScreen = mouse.screenpos
-        dragStartDialog = GetDialogPos RM_IC_MainRol
+        if pt.y > (RM_IC_MainRol.height - 12) then (
+            isResizing = true
+            dragStartScreen = mouse.screenpos
+            dragStartH = RM_IC_MainRol.height
+        ) else (
+            isDragging = true
+            dragStartScreen = mouse.screenpos
+            dragStartDialog = GetDialogPos RM_IC_MainRol
+        )
     )
-    on RM_IC_MainRol lbuttonup pt do ( isDragging = false )
+    on RM_IC_MainRol lbuttonup pt do ( 
+        isDragging = false 
+        isResizing = false
+    )
     on RM_IC_MainRol mousemove pt do (
-        if isDragging do SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
+        if isResizing then (
+            updateHeight (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
+        ) else if isDragging do (
+            SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
+        )
+    )
+    
+    on lbl_resize MouseDown arg do (
+        isResizing = true
+        dragStartScreen = mouse.screenpos
+        dragStartH = RM_IC_MainRol.height
+    )
+    on lbl_resize MouseUp arg do ( isResizing = false )
+    on lbl_resize MouseMove arg do (
+        if isResizing do updateHeight (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
     )
     
     on lbl_title MouseDown arg do (
@@ -990,11 +1019,15 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:770
         lbl_line.BackColor = bgCol
         lbl_line.Font = f
         
-        addSubRollout sub_holder roRM_IC_convert rolledUp:(not ro_convert_open)
-        addSubRollout sub_holder roRM_IC_clean   rolledUp:(not ro_clean_open)
-        addSubRollout sub_holder roRM_IC_elem    rolledUp:(not ro_elem_open)
+        lbl_resize.BackColor = bgCol
+        lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
         
-        RM_IC_autoResize()
+        -- По умолчанию раскрыт только первый модуль:
+        addSubRollout sub_holder roRM_IC_convert rolledUp:false
+        addSubRollout sub_holder roRM_IC_clean   rolledUp:true
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:true
+        
+        updateHeight (RM_IC_calcHeight())
     )
 )
 
@@ -1002,7 +1035,6 @@ fn RM_IC_openUI =
 (
     try (destroyDialog RM_IC_MainRol) catch()
     createDialog RM_IC_MainRol style:#()
-    RM_IC_autoResize()
 )
 
 RM_IC_openUI()
