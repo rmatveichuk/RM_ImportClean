@@ -60,4 +60,4 @@ Categorizes connected geometry elements using deep geometric signature matching 
 
 ## 👤 Author & Support
 * **Telegram Channel**: [@refer_manage](https://t.me/refer_manage)
-* **GitHub Repository**: [RM-ImportClean](https://github.com/rmatveichuk/RM-mportClean)
+* **GitHub Repository**: [RM_ImportClean](https://github.com/rmatveichuk/RM_ImportClean)
