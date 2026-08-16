@@ -34,32 +34,6 @@ global rm_ic_f2e = #()   -- полигон -> индекс элемента
 global rm_ic_e2g = #()   -- элемент -> индекс группы
 global rm_ic_g2row = #() -- группа  -> строка в multiListBox
 
-global ro_convert_open = true
-global ro_clean_open   = false
-global ro_elem_open    = false
-
-global RM_IC_calcHeight
-fn RM_IC_calcHeight = (
-    local h1 = if ro_convert_open then 175 else 24
-    local h2 = if ro_clean_open   then 310 else 24
-    local h3 = if ro_elem_open    then 540 else 24
-    h1 + h2 + h3 + 12 + 34
-)
-
-global RM_IC_autoResize
-fn RM_IC_autoResize = (
-    try (
-        local r = ::RM_IC_MainRol
-        if r == undefined or not r.open do return false
-        local newH = RM_IC_calcHeight()
-        r.updateHeight newH
-        true
-    ) catch (
-        format "RM_ImportClean resize error: %\n" (getCurrentException())
-        false
-    )
-)
-
 global RM_IC_floater
 global rm_ic_ef_obj    = undefined
 global rm_ic_ef_poly   = true
@@ -648,11 +622,6 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
         if chkUndo.checked then (undo "RM_ImportClean clean" on (doJob false))
         else (undo off (doJob false))
     )
-    
-    on roRM_IC_clean rolledUp state do (
-        ro_clean_open = not state
-        RM_IC_autoResize()
-    )
 )
 
 rollout roRM_IC_elem "3. Одинаковые элементы" width:330
@@ -910,11 +879,6 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
         lbInfo.text = "объект изменён - проанализируй заново"
     )
-    
-    on roRM_IC_elem rolledUp state do (
-        ro_elem_open = not state
-        RM_IC_autoResize()
-    )
 )
 
 /*======================================================================
@@ -922,29 +886,29 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 ======================================================================*/
 global RM_IC_MainRol
 
-rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
+rollout RM_IC_MainRol "RM ImportClean" width:340 height:680
 (
     local isDragging = false
     local isResizing = false
     local dragStartScreen = [0,0]
     local dragStartDialog = [0,0]
-    local dragStartH = 280
+    local dragStartH = 680
 
     -- [КАСТОМНЫЙ TITLE BAR]
     dotNetControl lbl_title "System.Windows.Forms.Label" pos:[8,7] width:125 height:15
     dotNetControl lbl_line  "System.Windows.Forms.Label" pos:[135,7] width:170 height:15
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
-    -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ]
-    subRollout sub_holder "" pos:[4,28] width:332 height:244
+    -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ СТАНДАРТНОЙ ВЫСОТЫ]
+    subRollout sub_holder "" pos:[4,28] width:332 height:642
     
-    -- [НИЖНЯЯ ОБЛАСТЬ ДЛЯ РАСТЯЖКИ ОКНА]
-    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,272] width:340 height:8
+    -- [НИЖНИЙ РЕСАЙЗЕР ДЛЯ РУЧНОЙ РЕГУЛИРОВКИ]
+    dotNetControl lbl_resize "System.Windows.Forms.Label" pos:[0,672] width:340 height:8
     
-    fn updateHeight h = (
-        local newH = amax 120 h
-        SetDialogSize RM_IC_MainRol [340, newH]
-        sub_holder.height = newH - 36
+    fn updateLayout h = (
+        local newH = amax 200 h
+        RM_IC_MainRol.height = newH
+        sub_holder.height = newH - 38
         lbl_resize.pos = [0, newH - 8]
     )
     
@@ -965,7 +929,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
     )
     on RM_IC_MainRol mousemove pt do (
         if isResizing then (
-            updateHeight (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
+            updateLayout (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
         ) else if isDragging do (
             SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
         )
@@ -978,7 +942,9 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
     )
     on lbl_resize MouseUp arg do ( isResizing = false )
     on lbl_resize MouseMove arg do (
-        if isResizing do updateHeight (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
+        if isResizing do (
+            updateLayout (dragStartH + (mouse.screenpos.y - dragStartScreen.y))
+        )
     )
     
     on lbl_title MouseDown arg do (
@@ -1022,12 +988,10 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:280
         lbl_resize.BackColor = bgCol
         lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
         
-        -- По умолчанию раскрыт только первый модуль:
+        -- По умолчанию: 1-й модуль раскрыт, 2-й и 3-й свернуты
         addSubRollout sub_holder roRM_IC_convert rolledUp:false
         addSubRollout sub_holder roRM_IC_clean   rolledUp:true
         addSubRollout sub_holder roRM_IC_elem    rolledUp:true
-        
-        updateHeight (RM_IC_calcHeight())
     )
 )
 
