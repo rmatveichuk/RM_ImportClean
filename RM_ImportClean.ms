@@ -882,7 +882,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 )
 
 /*======================================================================
-    ГЛАВНОЕ ОКНО С КАСТОМНОЙ ШАПКОЙ (СТАЙЛИНГ RM TOOLS)
+    ГЛАВНОЕ ОКНО С КАСТОМНОЙ ШАПКОЙ (СТАЙЛИНГ RM TOOLS) И ДИНАМИЧЕСКИМ РАЗМЕРОМ
 ======================================================================*/
 global RM_IC_MainRol
 
@@ -899,6 +899,13 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
     
     -- [КОНТЕЙНЕР ДЛЯ МОДУЛЕЙ]
     subRollout sub_holder "" pos:[4,28] width:332 height:678
+    
+    on RM_IC_MainRol resized size do (
+        sub_holder.width = amax 300 (size.x - 8)
+        sub_holder.height = amax 100 (size.y - 32)
+        btn_close.pos.x = size.x - 28
+        lbl_line.width = amax 20 (size.x - 170)
+    )
     
     on RM_IC_MainRol lbuttondown pt do (
         isDragging = true
@@ -943,7 +950,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
         lbl_title.BackColor = bgCol
         lbl_title.Font = f
         
-        lbl_line.text = ":::::::::::::::::::::::::"
+        lbl_line.text = "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::"
         lbl_line.ForeColor = cColor
         lbl_line.BackColor = bgCol
         lbl_line.Font = f
@@ -957,7 +964,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:710
 fn RM_IC_openUI =
 (
     try (destroyDialog RM_IC_MainRol) catch()
-    createDialog RM_IC_MainRol style:#()
+    createDialog RM_IC_MainRol style:#(#style_resizing) minSize:[340, 200]
 )
 
 RM_IC_openUI()
