@@ -411,6 +411,19 @@ fn rm_ic_analyze obj useOrient tol =
     )
     progressEnd()
     rm_ic_ef_groups = groups
+
+    -- Строим обратные таблицы поиска Face->Element и Element->Group
+    local nf = if isPoly then (polyop.getNumFaces obj) else (meshop.getNumFaces obj)
+    rm_ic_f2e = #()
+    rm_ic_f2e[nf] = 0
+    for ei = 1 to rm_ic_ef_elems.count do
+        for f in rm_ic_ef_elems[ei] do rm_ic_f2e[f] = ei
+
+    rm_ic_e2g = #()
+    rm_ic_e2g[rm_ic_ef_elems.count] = 0
+    for gi = 1 to rm_ic_ef_groups.count do
+        for ei in rm_ic_ef_groups[gi][2] do rm_ic_e2g[ei] = gi
+
     groups
 )
 
@@ -689,7 +702,6 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         disableSceneRedraw()
         try (
             rm_ic_analyze o chkOrient.checked spTol.value
-            rm_ic_buildLookups o rm_ic_ef_poly
         )
         catch (format "RM_ImportClean elem ERROR: %\n" (getCurrentException()))
         enableSceneRedraw()
@@ -706,13 +718,21 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     on btnFromVP pressed do
     (
         local o = rm_ic_ef_obj
-        if not isValidNode o do (
-            messageBox "Объект не выбран или был удален." title:"RM_ImportClean"
-            return false
+        if not (isValidNode o) do (
+            if selection.count == 1 and (rm_ic_isGeo selection[1]) then (
+                o = selection[1]
+                rm_ic_ef_obj = o
+                rm_ic_ef_poly = (classOf o.baseObject == Editable_Poly)
+            ) else (
+                messageBox "Выделите объект с проанализированной геометрией." title:"RM_ImportClean"
+                return false
+            )
         )
-        if rm_ic_f2e.count == 0 do (
-            lbRes.text = "сначала выполните анализ"
-            return false
+        
+        -- Если объект еще не был проанализирован, автоматически выполняем анализ
+        if rm_ic_ef_groups.count == 0 or rm_ic_f2e.count == 0 do (
+            rm_ic_analyze o chkOrient.checked spTol.value
+            refreshList()
         )
 
         local isPoly = (classOf o.baseObject == Editable_Poly)
