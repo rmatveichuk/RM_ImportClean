@@ -505,15 +505,13 @@ global RM_IC_RESIZE_OFS = 8                  -- 8 px (смещение метк�
 global RM_IC_MARGIN_TOP = 40                 -- 40 px запас от верхнего края экрана
 global RM_IC_MARGIN_BOT = 40                 -- 40 px запас от панели задач Windows
 
-fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
+fn RM_IC_fitHeight ro sub =
 (
     if ro == undefined or (classOf ro != RolloutClass) do return OK
     local need = RM_IC_PADDING
     for r in sub.rollouts do
     (
-        local isOpen = r.open
-        if (togglingRollout != unsupplied) and (r == togglingRollout) do isOpen = not isOpen
-        need += if isOpen then r.height else RM_IC_HEADER_H
+        need += if r.open then r.height else RM_IC_HEADER_H
     )
 
     local screenH = sysInfo.desktopSize.y as integer
@@ -605,7 +603,7 @@ rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" wi
     )
 
     on roRM_IC_convert rolledUp state do (
-        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder togglingRollout:roRM_IC_convert
+        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder
     )
 )
 
@@ -767,7 +765,7 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
     )
 
     on roRM_IC_clean rolledUp state do (
-        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder togglingRollout:roRM_IC_clean
+        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder
     )
 )
 
@@ -1080,7 +1078,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     )
 
     on roRM_IC_elem rolledUp state do (
-        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder togglingRollout:roRM_IC_elem
+        RM_IC_fitHeight ::RM_IC_MainRol ::RM_IC_MainRol.sub_holder
     )
 )
 
