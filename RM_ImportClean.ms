@@ -500,7 +500,7 @@ fn rm_ic_selectFaces obj isPoly bits =
 ======================================================================*/
 global RM_IC_HEADER_H   = 23                 -- замерено: H0=115, H1=395
 global RM_IC_PADDING    = 46                 -- замерено, сходится по обеим точкам
-global RM_IC_HOLDER_GAP = RM_IC_PADDING - 10 -- 36 px (28 px заголовок + 8 px ресайзер; 10 px запас контейнера)
+global RM_IC_HOLDER_GAP = RM_IC_PADDING      -- sub_holder.height = dialogH - HOLDER_GAP = точно по контенту
 global RM_IC_RESIZE_OFS = 8                  -- 8 px (смещение метки ресайза от низа)
 global RM_IC_MARGIN_TOP = 40                 -- 40 px запас от верхнего края экрана
 global RM_IC_MARGIN_BOT = 40                 -- 40 px запас от панели задач Windows
