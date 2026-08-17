@@ -1112,13 +1112,39 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         lbl_resize.pos = [0, newH - RM_IC_RESIZE_OFS]
     )
 
-    fn updateAllLang = (
+    fn applyLanguage =
+    (
+        local r1_open = roRM_IC_convert.open
+        local r2_open = roRM_IC_clean.open
+        local r3_open = roRM_IC_elem.open
+        
+        -- 1. Снимаем роллауты с контейнера
+        removeSubRollout sub_holder roRM_IC_convert
+        removeSubRollout sub_holder roRM_IC_clean
+        removeSubRollout sub_holder roRM_IC_elem
+        
+        -- 2. Задаем заголовки баннеров ДО монтирования в SubRollout
+        roRM_IC_convert.title = rm_ic_t "1. Конвертация из Revit (Mesh -> Poly)" "1. Convert from Revit (Mesh -> Poly)"
+        roRM_IC_clean.title   = rm_ic_t "2. Чистка лишних вершин" "2. Clean Redundant Vertices"
+        roRM_IC_elem.title    = rm_ic_t "3. Одинаковые элементы" "3. Identical Elements"
+        
+        -- 3. Монтируем роллауты обратно с сохранением их раскрытого/свернутого состояния
+        addSubRollout sub_holder roRM_IC_convert rolledUp:(not r1_open)
+        addSubRollout sub_holder roRM_IC_clean   rolledUp:(not r2_open)
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:(not r3_open)
+        
+        -- 4. Обновляем тексты всех внутренних контролов ПОСЛЕ монтирования
+        roRM_IC_convert.updateLang()
+        roRM_IC_clean.updateLang()
+        roRM_IC_elem.updateLang()
+        
+        -- 5. Обновляем кнопки заголовка
         btn_lang.text = if rm_ic_lang == #RU then "EN" else "RU"
         btn_lang.tooltip = rm_ic_t "Переключить на английский язык (Switch to English)" "Переключить на русский язык (Switch to Russian)"
         btn_close.tooltip = rm_ic_t "Закрыть RM ImportClean" "Close RM ImportClean"
-        try (roRM_IC_convert.updateLang()) catch()
-        try (roRM_IC_clean.updateLang()) catch()
-        try (roRM_IC_elem.updateLang()) catch()
+        
+        -- 6. Подгоняем высоту
+        RM_IC_fitHeight RM_IC_MainRol sub_holder
     )
     
     on RM_IC_MainRol lbuttondown pt do (
@@ -1180,22 +1206,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
     (
         rm_ic_lang = if rm_ic_lang == #RU then #EN else #RU
         rm_ic_saveSettings()
-        
-        local r1_open = roRM_IC_convert.open
-        local r2_open = roRM_IC_clean.open
-        local r3_open = roRM_IC_elem.open
-        
-        removeSubRollout sub_holder roRM_IC_convert
-        removeSubRollout sub_holder roRM_IC_clean
-        removeSubRollout sub_holder roRM_IC_elem
-        
-        updateAllLang()
-        
-        addSubRollout sub_holder roRM_IC_convert rolledUp:(not r1_open)
-        addSubRollout sub_holder roRM_IC_clean   rolledUp:(not r2_open)
-        addSubRollout sub_holder roRM_IC_elem    rolledUp:(not r3_open)
-        
-        RM_IC_fitHeight RM_IC_MainRol sub_holder
+        applyLanguage()
     )
 
     on btn_close pressed do destroyDialog RM_IC_MainRol
@@ -1219,13 +1230,24 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         lbl_resize.BackColor = bgCol
         lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
         
-        -- Сначала обновляем тексты под текущий язык:
-        updateAllLang()
+        -- Начальная установка заголовков под текущий язык:
+        roRM_IC_convert.title = rm_ic_t "1. Конвертация из Revit (Mesh -> Poly)" "1. Convert from Revit (Mesh -> Poly)"
+        roRM_IC_clean.title   = rm_ic_t "2. Чистка лишних вершин" "2. Clean Redundant Vertices"
+        roRM_IC_elem.title    = rm_ic_t "3. Одинаковые элементы" "3. Identical Elements"
 
-        -- Затем добавляем роллауты в контейнер:
+        -- Добавляем роллауты в контейнер:
         addSubRollout sub_holder roRM_IC_convert rolledUp:false
         addSubRollout sub_holder roRM_IC_clean   rolledUp:true
         addSubRollout sub_holder roRM_IC_elem    rolledUp:true
+
+        -- Обновляем контролы:
+        roRM_IC_convert.updateLang()
+        roRM_IC_clean.updateLang()
+        roRM_IC_elem.updateLang()
+        
+        btn_lang.text = if rm_ic_lang == #RU then "EN" else "RU"
+        btn_lang.tooltip = rm_ic_t "Переключить на английский язык (Switch to English)" "Переключить на русский язык (Switch to Russian)"
+        btn_close.tooltip = rm_ic_t "Закрыть RM ImportClean" "Close RM ImportClean"
 
         -- Автоподгонка начальной высоты:
         RM_IC_fitHeight RM_IC_MainRol sub_holder
