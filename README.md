@@ -1,4 +1,4 @@
-# RM ImportClean
+# RM ImportClean v1.7
 
 **RM ImportClean** is a professional geometry optimization and cleanup tool for **Autodesk 3ds Max**. Built to handle heavy architectural and industrial CAD/BIM models (Revit, Rhino, SketchUp, ArchiCAD, STEP/IGES, FBX, OBJ), it simplifies complex meshes, removes redundant topology, and isolates repeated elements in seconds.
 
@@ -8,23 +8,24 @@
 
 ### 1. 🔄 Smart Revit / CAD Mesh-to-Poly Converter
 Standard 3ds Max *Convert to Poly* often destroys rounded corners and creates non-planar polygon artifacts on CAD meshes.
-* **Non-Convex Polygon Protection**: Preserves roundings and prevents polygon collapse.
-* **Planar Threshold Validation**: Ensures only truly coplanar triangles are merged into n-gons.
-* **Mid-Edge Vertex Retention**: Keeps critical boundary vertices to avoid silhouette distortion.
+* **Non-Convex Polygon Protection (`Keep Polygons Convex`)**: Preserves roundings and prevents polygon collapse.
+* **Planar Threshold Validation (`Require Planar Polygons`)**: Ensures only truly coplanar triangles are merged into n-gons.
+* **Mid-Edge Vertex Retention**: Keeps critical boundary vertices to avoid silhouette distortion and cracks.
 * **Configurable Max N-gon Size**: Control max edges per polygon (Tri/Quad/N-gon).
 
 ### 2. 🧹 Redundant Topology & Vertex Cleaner
 Cleans up millions of redundant vertices and coplanar edges without damaging model details.
-* **Coplanar Edge Optimizer**: Removes invisible triangulation and diagonal dividing edges while strictly respecting:
+* **Coplanar Edge Optimizer (Pass 1)**: Removes invisible triangulation and diagonal dividing edges while strictly respecting:
   * **Material IDs** (preserves multi-sub materials)
-  * **Smoothing Groups** (prevents shading errors)
+  * **Smoothing Groups** (prevents shading errors on hard edges)
   * **UV Seams & Mapping Channels** (texture coordinates remain 100% intact)
-* **Collinear Vertex Welder**: Detects and cleans straight-line edge vertices within user-defined angular tolerances.
+* **Collinear Vertex Welder (Pass 2)**: Detects and cleans straight-line edge vertices within user-defined angular tolerances.
+* **Pre-Weld Vertices**: Automatically closes open border gaps and microscopic import tears before running topology passes.
 
 ### 3. 🔍 Identical Element Analyzer & Filter
 Categorizes connected geometry elements using deep geometric signature matching (vertex/polygon counts, sorted centroid distance profiles, and bounding box dimensions).
 * **Duplicate Detection**: Identifies repeated components (windows, bolts, mullions, panels, imported dust/artifacts).
-* **Viewport-to-List Reverse Search**: Select any single element in the viewport and click **"НАЙТИ ТАКИЕ ЖЕ (по выделению)"** to instantly highlight its group in the list and select all identical clones across the scene.
+* **Viewport-to-List Reverse Search**: Select any single element in the viewport and click **"FIND SIMILAR (from selection)" / "НАЙТИ ТАКИЕ ЖЕ (по выделению)"** to instantly highlight its group in the list and select all identical clones across the scene.
 * **Multi-Criteria Sorting**: Sort by element size (smallest first) or frequency (most repeated first).
 * **Fast Bounding Size Filter**: Instantly select all geometry elements smaller than a specified size threshold.
 * **Delete & Detach**:
@@ -34,10 +35,14 @@ Categorizes connected geometry elements using deep geometric signature matching 
 
 ---
 
-## 🎨 User Interface
+## 🎨 User Interface & Localization
+
+* **Bilingual Support (RU / EN)**: Instant one-click language toggle button in the custom title bar (`EN` / `RU`). Remembers user language preference across 3ds Max sessions.
+* **Interactive Tooltips**: Detailed explanations appear on hovering and holding cursor over any control, explaining the purpose, mathematical meaning, and best-practice recommendations for every setting.
 * **Sleek Frameless Design**: Custom DotNet title bar styled in harmony with the **RM Tools** ecosystem.
-* **Smooth Window Dragging**: Responsive drag-and-drop window positioning.
-* **Collapsible Sub-Rollouts**: Compact, organized workflow panels with smooth scrolling.
+* **Adaptive Height & Clamping**: Automatically calculates optimal window size depending on expanded modules and screen resolution.
+* **Smooth Window Dragging & Resizing**: Responsive drag-and-drop window positioning and bottom resize handle.
+* **Collapsible Sub-Rollouts**: Compact, organized workflow panels.
 
 ---
 
@@ -59,12 +64,6 @@ Categorizes connected geometry elements using deep geometric signature matching 
 
 ---
 
-## 📋 Backlog / Planned Features
-1. **[Модуль 2 — Чистка лишних вершин]**: Добавить опцию штатной сварки вершин (`Weld`) с настраиваемым порогом в миллиметрах (по умолчанию `0.01 мм`) для устранения открытых трещин импорта (`border edges`) без перестроения топологии.
-
----
-
 ## 👤 Author & Support
 * **Telegram Channel**: [@refer_manage](https://t.me/refer_manage)
 * **GitHub Repository**: [RM_ImportClean](https://github.com/rmatveichuk/RM_ImportClean)
-

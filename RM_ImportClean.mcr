@@ -4,7 +4,7 @@
 macroScript RM_ImportClean
 category:"RM scripts"
 buttonText:"Import Clean"
-toolTip:"RM ImportClean - Mesh cleaner & converter"
+toolTip:"RM ImportClean v1.7 - Mesh cleaner & converter"
 iconName:"Icon_RM_ImportClean"
 (
     on execute do

@@ -1,5 +1,5 @@
 name "RM ImportClean"
-version 1.6
+version 1.7
 
 copy "RM_ImportClean.mcr" to "$userMacros\"
 copy "RM_ImportClean.ms" to "$userScripts\"

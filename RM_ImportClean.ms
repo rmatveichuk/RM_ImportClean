@@ -1,5 +1,5 @@
 /***********************************************************************
-    RM_ImportClean  v1.6
+    RM_ImportClean  v1.7
     Набор инструментов подготовки геометрии, импортированной из CAD/Revit.
 
     Блок 1. Конвертация Mesh -> Poly без развала скруглений (Turn to Poly)
@@ -30,6 +30,7 @@ try (
     )
 ) catch()
 
+global rm_ic_lang = #RU
 global rm_ic_f2e = #()   -- полигон -> индекс элемента
 global rm_ic_e2g = #()   -- элемент -> индекс группы
 global rm_ic_g2row = #() -- группа  -> строка в multiListBox
@@ -39,6 +40,40 @@ global rm_ic_ef_obj    = undefined
 global rm_ic_ef_poly   = true
 global rm_ic_ef_elems  = #()
 global rm_ic_ef_groups = #()
+global rm_ic_par       = #()
+
+global roRM_IC_convert
+global roRM_IC_clean
+global roRM_IC_elem
+global RM_IC_MainRol
+
+--------------------------------------------------------------- ЛОКАЛИЗАЦИЯ И НАСТРОЙКИ
+fn rm_ic_t ru en = (if ::rm_ic_lang == #EN then en else ru)
+
+fn rm_ic_getIniPath =
+(
+    (getDir #plugcfg) + "\\RM_ImportClean.ini"
+)
+
+fn rm_ic_loadSettings =
+(
+    local ini = rm_ic_getIniPath()
+    if doesFileExist ini then
+    (
+        local l = getINISetting ini "Settings" "Language"
+        if l == "EN" then rm_ic_lang = #EN else rm_ic_lang = #RU
+    )
+    else
+    (
+        rm_ic_lang = #RU
+    )
+)
+
+fn rm_ic_saveSettings =
+(
+    local ini = rm_ic_getIniPath()
+    setINISetting ini "Settings" "Language" (if rm_ic_lang == #EN then "EN" else "RU")
+)
 
 --------------------------------------------------------------- общие utils
 fn rm_ic_isEPoly o = (isValidNode o and (classOf o.baseObject == Editable_Poly))
@@ -221,14 +256,7 @@ fn rm_ic_collinearVerts obj vertTol:1.0 onlySel:false selectOnly:false killDegen
 ======================================================================*/
 fn rm_ic_q v t = ((floor (v / t + 0.5)) as integer)
 
--- ---------------------------------------------------------------------
--- Разбор объекта на элементы через union-find по вершинам.
--- Старая версия звала polyop.getElementsUsingFace на каждый элемент,
--- а это заливка по всей сетке: O(элементы x грани). На 900k полигонов
--- давало часы. Здесь два линейных прохода: O(грани + вершины).
--- ---------------------------------------------------------------------
-global rm_ic_par = #()
-
+-- Разбор объекта на элементы через union-find по вершинам
 fn rm_ic_find i =
 (
     local r = i
@@ -323,9 +351,6 @@ fn rm_ic_sig obj isPoly vlist nf useOrient tol =
     )
     cen /= nv
 
-    -- ВАЖНО: Point3 в MaxScript присваивается ПО ССЫЛКЕ.
-    -- "local mn = pts[1], mx = pts[1]" делает mn и mx одним объектом,
-    -- габарит тогда всегда 0. Поэтому считаем по отдельным float.
     local p0 = pts[1]
     local mnx = p0.x, mny = p0.y, mnz = p0.z
     local mxx = p0.x, mxy = p0.y, mxz = p0.z
@@ -374,7 +399,7 @@ fn rm_ic_analyze obj useOrient tol =
     rm_ic_ef_obj  = obj
     rm_ic_ef_poly = isPoly
 
-    progressStart "RM_ImportClean: анализ элементов..."
+    progressStart (rm_ic_t "RM_ImportClean: анализ элементов..." "RM_ImportClean: analyzing elements...")
     local pack   = rm_ic_collect obj isPoly
     local elems  = pack[1]
     local everts = pack[2]
@@ -439,7 +464,8 @@ fn rm_ic_selectFaces obj isPoly bits =
     local safeBits = bits * #{1..numFaces}
     if safeBits.numberSet != bits.numberSet do
     (
-        messageBox "Геометрия объекта изменилась с момента анализа.\nПожалуйста, выполните анализ заново." title:"RM_ImportClean"
+        messageBox (rm_ic_t "Геометрия объекта изменилась с момента анализа.\nПожалуйста, выполните анализ заново." \
+                            "Object geometry has changed since analysis.\nPlease run analysis again.") title:"RM_ImportClean"
         return false
     )
 
@@ -511,6 +537,9 @@ fn RM_IC_fitHeight ro sub togglingRollout:unsupplied =
     OK
 )
 
+/*======================================================================
+    РОЛЛАУТЫ МОДУЛЕЙ
+======================================================================*/
 rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" width:330
 (
     label lb1 "Заменяет обычный Convert to Poly, который" align:#left
@@ -523,12 +552,37 @@ rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" wi
     button   btnConv "КОНВЕРТИРОВАТЬ ВЫДЕЛЕННЫЕ" width:312 height:30
     label    lbConvRes "" height:16
 
+    fn updateLang =
+    (
+        roRM_IC_convert.title = rm_ic_t "1. Конвертация из Revit (Mesh -> Poly)" "1. Convert from Revit (Mesh -> Poly)"
+        lb1.text = rm_ic_t "Заменяет обычный Convert to Poly, который" "Replaces standard Convert to Poly, which"
+        lb2.text = rm_ic_t "разваливает скругления на невыпуклых n-gon'ах." "breaks fillets on non-convex n-gons."
+        spMax.caption = rm_ic_t "Максимум сторон полигона:" "Max sides per polygon:"
+        spMax.tooltip = rm_ic_t "Максимальное число сторон полигона (3 = треугольники, 4 = четырехугольники, >4 = n-гоны)." \
+                                 "Max sides per polygon (3 = triangles, 4 = quads, >4 = n-gons)."
+        chkConvex.text = "Keep Polygons Convex"
+        chkConvex.tooltip = rm_ic_t "Запрещает создавать невыпуклые (вогнутые / L-образные) полигоны. Предотвращает заломы и ошибки затенения на скруглениях." \
+                                    "Prevents creation of non-convex (concave / L-shaped) polygons. Eliminates shading glitches on curved CAD surfaces."
+        chkPlanar.text = "Require Planar Polygons"
+        chkPlanar.tooltip = rm_ic_t "Объединяет треугольники в полигоны только если они лежат строго в одной плоскости (с учетом порога Planar Threshold)." \
+                                    "Only merges triangles into polygons if they are coplanar within the Planar Threshold angle."
+        spPlanar.caption = rm_ic_t "   Planar Threshold, град:" "   Planar Threshold, deg:"
+        spPlanar.tooltip = rm_ic_t "Максимальный угол между нормалями треугольников для их объединения в один плоский полигон." \
+                                   "Maximum angle between triangle normals allowed to merge into a single planar polygon."
+        chkMidEdge.text = rm_ic_t "Сохранять точки на рёбрах" "Keep mid-edge vertices"
+        chkMidEdge.tooltip = rm_ic_t "Сохраняет вершины на рёбрах, предотвращая появление щелей и зазоров на стыках объектов." \
+                                     "Preserves collinear vertices on boundary edges to prevent cracks between adjacent parts."
+        btnConv.text = rm_ic_t "КОНВЕРТИРОВАТЬ ВЫДЕЛЕННЫЕ" "CONVERT SELECTED"
+        btnConv.tooltip = rm_ic_t "Конвертировать выделенные объекты в Editable Poly с правильной топологией через Turn to Poly." \
+                                  "Convert selected objects to Editable Poly with clean topology using Turn to Poly."
+    )
+
     on btnConv pressed do
     (
         local objs = for o in selection where superClassOf o == GeometryClass collect o
         if objs.count == 0 do
         (
-            messageBox "Выдели хотя бы один геометрический объект." title:"RM_ImportClean"
+            messageBox (rm_ic_t "Выдели хотя бы один геометрический объект." "Select at least one geometry object.") title:"RM_ImportClean"
             return false
         )
         local t0 = timeStamp()
@@ -546,8 +600,8 @@ rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" wi
         catch (format "RM_ImportClean convert ERROR: %\n" (getCurrentException()))
         enableSceneRedraw()
         redrawViews()
-        lbConvRes.text = ("сконвертировано: " + ok as string + " из " + objs.count as string + \
-                          "   (" + (formattedPrint ((timeStamp()-t0)/1000.0) format:".1f") + " c)")
+        lbConvRes.text = ((rm_ic_t "сконвертировано: " "converted: ") + ok as string + (rm_ic_t " из " " of ") + objs.count as string + \
+                          "   (" + (formattedPrint ((timeStamp()-t0)/1000.0) format:".1f") + (rm_ic_t " c)" " s)"))
     )
 
     on roRM_IC_convert rolledUp state do (
@@ -557,23 +611,23 @@ rollout roRM_IC_convert "1. Конвертация из Revit (Mesh -> Poly)" wi
 
 rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
 (
-    group "Что чистим"
+    group "Что чистим / What to clean"
     (
         checkbox chkV "Pass 2: вершины на прямой (collinear)" checked:true
         checkbox chkE "Pass 1: рёбра между компланарными гранями" checked:false
     )
-    group "Допуски"
+    group "Допуски / Tolerances"
     (
         spinner spV "Угол вершины, град:" range:[0.0,45.0,1.0] type:#float scale:0.1 fieldWidth:52
         spinner spF "Угол граней,  град:" range:[0.0,45.0,0.5] type:#float scale:0.1 fieldWidth:52
     )
-    group "Не трогать границы"
+    group "Не трогать границы / Preserve boundaries"
     (
         checkbox chkMat "Material ID" checked:true across:2
         checkbox chkSG  "Smooth Groups" checked:true
         checkbox chkUV  "UV швы (медленно)" checked:false
     )
-    group "Дополнительно"
+    group "Дополнительно / Additional"
     (
         checkbox chkWeld "Сначала Weld" checked:false across:2
         spinner  spW "" range:[0.0,10000.0,0.01] type:#float scale:0.001 fieldWidth:56
@@ -586,12 +640,58 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
     label lbA "готов" height:16
     label lbB "" height:16
 
+    fn updateLang =
+    (
+        roRM_IC_clean.title = rm_ic_t "2. Чистка лишних вершин" "2. Clean Redundant Vertices"
+        chkV.text = rm_ic_t "Pass 2: вершины на прямой (collinear)" "Pass 2: Collinear vertices (straight line)"
+        chkV.tooltip = rm_ic_t "Удаляет промежуточные вершины на прямых участках рёбер (коллинеарные), не меняя геометрию." \
+                                "Removes intermediate collinear vertices along straight edges without changing mesh shape."
+        chkE.text = rm_ic_t "Pass 1: рёбра между компланарными гранями" "Pass 1: Coplanar edges (flat surfaces)"
+        chkE.tooltip = rm_ic_t "Удаляет невидимые ребра и диагонали триангуляции между гранями, лежащими в одной плоскости." \
+                                "Removes internal diagonal edges and triangulation between coplanar faces."
+        spV.caption = rm_ic_t "Угол вершины, град:" "Vertex angle, deg:"
+        spV.tooltip = rm_ic_t "Максимальное угловое отклонение для признания вершины лежащей на прямой линии." \
+                               "Maximum angular deviation for a vertex on an edge to be treated as collinear/straight."
+        spF.caption = rm_ic_t "Угол граней,  град:" "Face angle, deg:"
+        spF.tooltip = rm_ic_t "Максимальный угол между нормалями граней для признания их лежащими в одной плоскости." \
+                               "Maximum angle between face normals to treat adjacent faces as coplanar."
+        chkMat.tooltip = rm_ic_t "Не удалять рёбра на границах разных ID материалов (защита Multi/Sub-Object материалов)." \
+                                 "Preserve edges between faces with different Material IDs (protects Multi/Sub-Object materials)."
+        chkSG.tooltip = rm_ic_t "Не удалять рёбра на границах групп сглаживания (защита жестких ребер / hard edges)." \
+                                "Preserve edges at smoothing group boundaries (preserves hard shading edges)."
+        chkUV.text = rm_ic_t "UV швы (медленно)" "UV seams (slow)"
+        chkUV.tooltip = rm_ic_t "Проверять текстурные каналы и защищать ребра на UV-швах от слияния (медленный режим)." \
+                                "Check map channels and protect UV texture seams from being collapsed (slower)."
+        chkWeld.text = rm_ic_t "Сначала Weld" "Pre-Weld Vertices"
+        chkWeld.tooltip = rm_ic_t "Сварить близкие вершины перед очисткой (устраняет открытые трещины CAD-импорта)." \
+                                  "Weld close vertices before cleaning (fixes open boundary cracks from CAD import)."
+        spW.tooltip = rm_ic_t "Радиус сварки вершин (в единицах сцены / мм). По умолчанию 0.01." \
+                              "Vertex welding threshold distance (in scene units). Default: 0.01."
+        chkSel.text = rm_ic_t "Только внутри выделения sub-object" "Only within sub-object selection"
+        chkSel.tooltip = rm_ic_t "Применять чистку только к текущему выделению вершин/рёбер в стеке Editable Poly." \
+                                 "Apply cleaning only to currently selected sub-object vertices/edges in Editable Poly."
+        spIt.caption = rm_ic_t "Повторов (Pass1+Pass2):" "Iterations (Pass1+Pass2):"
+        spIt.tooltip = rm_ic_t "Число повторных циклов Pass1 + Pass2 (рекомендуется 2 прохода)." \
+                               "Number of clean cycles Pass1 + Pass2 (2 passes recommended)."
+        chkUndo.text = rm_ic_t "Включить Undo (жрёт RAM)" "Enable Undo (uses RAM)"
+        chkUndo.tooltip = rm_ic_t "Включает запись операции в историю отмены (Ctrl+Z). На тяжелых сетках (>500k полигонов) требует много RAM." \
+                                  "Records action into Undo buffer (Ctrl+Z). On huge meshes (>500k polys) may use high RAM."
+        btnSel.text = rm_ic_t "1 - ВЫДЕЛИТЬ кандидатов (превью)" "1 - SELECT CANDIDATES (preview)"
+        btnSel.tooltip = rm_ic_t "Найти и выделить в sub-object режиме рёбра или вершины под условия чистки без их удаления." \
+                                 "Highlight candidate edges and vertices in sub-object mode without deleting them."
+        btnRun.text = rm_ic_t "2 - ПОЧИСТИТЬ" "2 - CLEAN MESH"
+        btnRun.tooltip = rm_ic_t "Удалить лишние рёбра и вершины согласно выбранным настройкам." \
+                                 "Remove redundant edges and collinear vertices according to current settings."
+        lbA.text = rm_ic_t "готов" "ready"
+    )
+
     fn doJob selectOnly =
     (
         local objs = for o in selection where rm_ic_isEPoly o collect o
         if objs.count == 0 do
         (
-            messageBox "Выдели хотя бы один Editable Poly.\nEditable Mesh сначала прогони через блок 1." title:"RM_ImportClean"
+            messageBox (rm_ic_t "Выдели хотя бы один Editable Poly.\nEditable Mesh сначала прогони через блок 1." \
+                                "Select at least one Editable Poly.\nFor Editable Mesh, run Block 1 (Convert) first.") title:"RM_ImportClean"
             return false
         )
 
@@ -601,7 +701,7 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
 
         disableSceneRedraw()
         suspendEditing()
-        progressStart "RM_ImportClean: чистка..."
+        progressStart (rm_ic_t "RM_ImportClean: чистка..." "RM_ImportClean: cleaning...")
         try
         (
             for obj in objs do
@@ -642,8 +742,8 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
         local dt = (timeStamp() - t0) / 1000.0
         if selectOnly then
         (
-            lbA.text = ("кандидатов: верт " + totV as string + " / рёбер " + totE as string)
-            lbB.text = ("время " + (formattedPrint dt format:".1f") + " c")
+            lbA.text = ((rm_ic_t "кандидатов: верт " "candidates: verts ") + totV as string + (rm_ic_t " / рёбер " " / edges ") + totE as string)
+            lbB.text = ((rm_ic_t "время " "time ") + (formattedPrint dt format:".1f") + (rm_ic_t " c" " s"))
             try (
                 max modify mode
                 subObjectLevel = if (chkV.checked and totV > 0) then 1 else 2
@@ -651,7 +751,7 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
         )
         else
         (
-            lbA.text = ("удалено: верт " + totV as string + " / рёбер " + totE as string)
+            lbA.text = ((rm_ic_t "удалено: верт " "removed: verts ") + totV as string + (rm_ic_t " / рёбер " " / edges ") + totE as string)
             lbB.text = ("verts " + pv0 as string + " -> " + pv1 as string + \
                         "   polys " + pf0 as string + " -> " + pf1 as string)
         )
@@ -673,7 +773,7 @@ rollout roRM_IC_clean "2. Чистка лишних вершин" width:330
 
 rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 (
-    group "Анализ"
+    group "Анализ / Analysis"
     (
         checkbox chkOrient "Учитывать поворот (строже)" checked:false
         spinner  spTol "Допуск совпадения:" range:[0.0001,1000.0,0.5] type:#float scale:0.01 fieldWidth:60
@@ -681,24 +781,24 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     )
     label lbInfo "объект не проанализирован" height:16
 
-    group "Группы одинаковых элементов"
+    group "Группы одинаковых элементов / Duplicate groups"
     (
-        radiobuttons rbSort labels:#("мелкие сверху","частые сверху") default:1 columns:2
+        radiobuttons rbSort labels:#("габарит / size", "повторы / count") default:1 columns:2
         multiListBox mlb "" height:12 width:299
     )
     button btnSelGrp "ВЫДЕЛИТЬ отмеченные группы" width:299 height:28
 
-    group "Быстрый фильтр по размеру"
+    group "Быстрый фильтр по размеру / Quick filter"
     (
         spinner spSize "Габарит меньше:" range:[0.0,1e9,5.0] type:#float scale:0.1 fieldWidth:60
         spinner spCnt  "и повторов не менее:" range:[1,10000,1] type:#integer fieldWidth:60
     )
     button btnSelSize "ВЫДЕЛИТЬ по фильтру" width:299 height:28
     
-    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:299 height:28 tooltip:"Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии"
+    button btnFromVP "НАЙТИ ТАКИЕ ЖЕ (по выделению)" width:299 height:28
     
-    button btnDel "УДАЛИТЬ" width:150 height:28 across:2 tooltip:"Удалить выделенные полигоны/элементы"
-    button btnDetach "ОТДЕЛИТЬ (Detach)" width:150 height:28 tooltip:"Отделить выделенное в отдельный новый объект"
+    button btnDel "УДАЛИТЬ" width:150 height:28 across:2
+    button btnDetach "ОТДЕЛИТЬ (Detach)" width:150 height:28
     label lbRes "" height:16
 
     -- карта "строка списка -> индекс группы" (multiListBox не имеет .tag)
@@ -723,10 +823,59 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         mlb.items = for i in idx collect
         (
             local gr = rm_ic_ef_groups[i]
-            ("x" + (gr[2].count as string) + "   габ " + (rm_ic_fmt gr[3]) + \
+            ("x" + (gr[2].count as string) + (rm_ic_t "   габ " "   dim ") + (rm_ic_fmt gr[3]) + \
              "   v" + (gr[4] as string) + " f" + (gr[5] as string))
         )
         true
+    )
+
+    fn updateLang =
+    (
+        roRM_IC_elem.title = rm_ic_t "3. Одинаковые элементы" "3. Identical Elements"
+        chkOrient.text = rm_ic_t "Учитывать поворот (строже)" "Consider orientation (strict)"
+        chkOrient.tooltip = rm_ic_t "Сравнивать габариты элементов по осям X, Y, Z (не объединяет повернутые детали в одну группу)." \
+                                    "Match oriented bounding box dimensions (does not group rotated copies together)."
+        spTol.caption = rm_ic_t "Допуск совпадения:" "Match tolerance:"
+        spTol.tooltip = rm_ic_t "Допустимая погрешность сравнения размеров и расстояний между вершинами элемента (в единицах сцены)." \
+                                "Tolerance for matching vertex distance distributions and element dimensions (in scene units)."
+        btnGo.text = rm_ic_t "АНАЛИЗИРОВАТЬ ВЫДЕЛЕННЫЙ ОБЪЕКТ" "ANALYZE SELECTED OBJECT"
+        btnGo.tooltip = rm_ic_t "Быстро разобрать геометрию объекта на несвязанные элементы и сгруппировать одинаковые детали." \
+                                "Fast scan object geometry into disconnected elements and group identical duplicates."
+        rbSort.tooltip = rm_ic_t "Порядок сортировки групп элементов в списке ниже (по габариту или по числу повторов)." \
+                                 "Sorting order for element groups in the list below (by size or by instance count)."
+        mlb.tooltip = rm_ic_t "Список обнаруженных групп одинаковых деталей. Выберите одну или несколько строк для выделения во вьюпорте." \
+                              "List of detected identical element groups. Select one or more rows to highlight in viewport."
+        btnSelGrp.text = rm_ic_t "ВЫДЕЛИТЬ отмеченные группы" "SELECT MARKED GROUPS"
+        btnSelGrp.tooltip = rm_ic_t "Выделить во вьюпорте все полигоны/элементы, принадлежащие отмеченным в списке группам." \
+                                    "Select all faces/elements in viewport belonging to the groups marked in the list."
+        spSize.caption = rm_ic_t "Габарит меньше:" "Bounding size <:"
+        spSize.tooltip = rm_ic_t "Максимальный диагональный габарит элемента для фильтрации мелких деталей (болты, мусор, фурнитура)." \
+                                 "Maximum diagonal bounding size to filter small repetitive parts (screws, dust, hardware)."
+        spCnt.caption = rm_ic_t "и повторов не менее:" "and count >="
+        spCnt.tooltip = rm_ic_t "Минимальное количество повторений детали в объекте для попадания в фильтр." \
+                                "Minimum repetition count for an element group to match the filter."
+        btnSelSize.text = rm_ic_t "ВЫДЕЛИТЬ по фильтру" "SELECT BY FILTER"
+        btnSelSize.tooltip = rm_ic_t "Выделить во вьюпорте все группы элементов, удовлетворяющие заданному размеру и числу повторов." \
+                                     "Highlight in viewport all element groups matching the size and count criteria."
+        btnFromVP.text = rm_ic_t "НАЙТИ ТАКИЕ ЖЕ (по выделению)" "FIND SIMILAR (from selection)"
+        btnFromVP.tooltip = rm_ic_t "Выделите деталь во вьюпорте и нажмите, чтобы найти и выделить все такие же копии в объекте." \
+                                    "Select a part in the viewport and click to find and highlight all identical copies across the object."
+        btnDel.text = rm_ic_t "УДАЛИТЬ" "DELETE"
+        btnDel.tooltip = rm_ic_t "Безвозвратно удалить выделенные полигоны/элементы и очистить изолированные вершины." \
+                                 "Permanently delete selected polygons/elements and remove isolated vertices."
+        btnDetach.text = rm_ic_t "ОТДЕЛИТЬ (Detach)" "DETACH (Detach)"
+        btnDetach.tooltip = rm_ic_t "Отделить выделенные полигоны/элементы в отдельный новый объект с сохранением трансформаций." \
+                                    "Detach selected polygons/elements into a separate new object with preserved transforms."
+        if rm_ic_ef_groups.count > 0 then (
+            refreshList()
+            local dup = 0
+            for gr in rm_ic_ef_groups where gr[2].count > 1 do dup += gr[2].count
+            lbInfo.text = ((rm_ic_t "элементов " "elements ") + rm_ic_ef_elems.count as string + \
+                           (rm_ic_t " / групп " " / groups ") + rm_ic_ef_groups.count as string + \
+                           (rm_ic_t " / в повторах " " / in duplicates ") + dup as string)
+        ) else (
+            lbInfo.text = rm_ic_t "объект не проанализирован" "object not analyzed"
+        )
     )
 
     fn gatherBits groupIdxList =
@@ -742,7 +891,8 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         local o = selection[1]
         if selection.count != 1 or not rm_ic_isGeo o do
         (
-            messageBox "Выдели ровно ОДИН объект: Editable Poly или Editable Mesh." title:"RM_ImportClean"
+            messageBox (rm_ic_t "Выдели ровно ОДИН объект: Editable Poly или Editable Mesh." \
+                                "Select exactly ONE object: Editable Poly or Editable Mesh.") title:"RM_ImportClean"
             return false
         )
         local t0 = timeStamp()
@@ -755,11 +905,11 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 
         local dup = 0
         for gr in rm_ic_ef_groups where gr[2].count > 1 do dup += gr[2].count
-        lbInfo.text = ("элементов " + rm_ic_ef_elems.count as string + \
-                       " / групп " + rm_ic_ef_groups.count as string + \
-                       " / в повторах " + dup as string)
+        lbInfo.text = ((rm_ic_t "элементов " "elements ") + rm_ic_ef_elems.count as string + \
+                       (rm_ic_t " / групп " " / groups ") + rm_ic_ef_groups.count as string + \
+                       (rm_ic_t " / в повторах " " / in duplicates ") + dup as string)
         refreshList()
-        lbRes.text = ("анализ " + (formattedPrint ((timeStamp()-t0)/1000.0) format:".1f") + " c")
+        lbRes.text = ((rm_ic_t "анализ " "analysis ") + (formattedPrint ((timeStamp()-t0)/1000.0) format:".1f") + (rm_ic_t " c" " s"))
     )
 
     on btnFromVP pressed do
@@ -771,7 +921,8 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
                 rm_ic_ef_obj = o
                 rm_ic_ef_poly = (classOf o.baseObject == Editable_Poly)
             ) else (
-                messageBox "Выделите объект с проанализированной геометрией." title:"RM_ImportClean"
+                messageBox (rm_ic_t "Выделите объект с проанализированной геометрией." \
+                                    "Select an object with analyzed geometry.") title:"RM_ImportClean"
                 return false
             )
         )
@@ -785,7 +936,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         local isPoly = (classOf o.baseObject == Editable_Poly)
         local sel = if isPoly then (polyop.getFaceSelection o) else (getFaceSelection o)
         if sel.numberSet == 0 do (
-            lbRes.text = "во вьюпорте ничего не выделено"
+            lbRes.text = (rm_ic_t "во вьюпорте ничего не выделено" "nothing is selected in viewport")
             return false
         )
 
@@ -800,7 +951,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
             )
         )
         if gset.numberSet == 0 do (
-            lbRes.text = "элемент не принадлежит ни одной группе"
+            lbRes.text = (rm_ic_t "элемент не принадлежит ни одной группе" "element does not belong to any group")
             return false
         )
 
@@ -820,7 +971,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         )
 
         rm_ic_selectFaces o rm_ic_ef_poly bits
-        lbRes.text = ("найдено: " + nElems as string + " эл., " + bits.numberSet as string + " пол.")
+        lbRes.text = ((rm_ic_t "найдено: " "found: ") + nElems as string + (rm_ic_t " эл., " " elems, ") + bits.numberSet as string + (rm_ic_t " пол." " polys"))
     )
 
     on rbSort changed st do refreshList()
@@ -829,10 +980,10 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
     (
         if rm_ic_ef_groups.count == 0 or not isValidNode rm_ic_ef_obj do return false
         local picked = for i in mlb.selection where mlbMap[i] != undefined collect mlbMap[i]
-        if picked.count == 0 do (lbRes.text = "не отмечено ни одной группы"; return false)
+        if picked.count == 0 do (lbRes.text = (rm_ic_t "не отмечено ни одной группы" "no groups selected in list"); return false)
         local bits = gatherBits picked
         rm_ic_selectFaces rm_ic_ef_obj rm_ic_ef_poly bits
-        lbRes.text = ("выделено полигонов: " + bits.numberSet as string)
+        lbRes.text = ((rm_ic_t "выделено полигонов: " "selected polygons: ") + bits.numberSet as string)
     )
 
     on btnSelSize pressed do
@@ -841,12 +992,12 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         local picked = for i = 1 to rm_ic_ef_groups.count \
                        where rm_ic_ef_groups[i][3] < spSize.value and \
                              rm_ic_ef_groups[i][2].count >= spCnt.value collect i
-        if picked.count == 0 do (lbRes.text = "под фильтр ничего не попало"; return false)
+        if picked.count == 0 do (lbRes.text = (rm_ic_t "под фильтр ничего не попало" "no elements matched filter"); return false)
         local bits = gatherBits picked
         rm_ic_selectFaces rm_ic_ef_obj rm_ic_ef_poly bits
         local ne = 0
         for gi in picked do ne += rm_ic_ef_groups[gi][2].count
-        lbRes.text = ("элементов " + ne as string + ", полигонов " + bits.numberSet as string)
+        lbRes.text = ((rm_ic_t "элементов " "elements ") + ne as string + (rm_ic_t ", полигонов " ", polygons ") + bits.numberSet as string)
     )
 
     on btnDel pressed do
@@ -860,9 +1011,10 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         
         local bits = if isPoly then (polyop.getFaceSelection o) \
                      else (getFaceSelection o)
-        if bits.numberSet == 0 do (lbRes.text = "нет выделенных полигонов"; return false)
+        if bits.numberSet == 0 do (lbRes.text = (rm_ic_t "нет выделенных полигонов" "no polygons selected"); return false)
         
-        if (queryBox ("Удалить " + bits.numberSet as string + " выделенных полигонов?\nОтмена недоступна.") \
+        if (queryBox ((rm_ic_t "Удалить " "Delete ") + bits.numberSet as string + \
+                      (rm_ic_t " выделенных полигонов?\nОтмена недоступна." " selected polygons?\nUndo is not available.")) \
                      title:"RM_ImportClean") do
         (
             undo off
@@ -872,9 +1024,9 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
                 update o
             )
             redrawViews()
-            lbRes.text = ("удалено полигонов: " + bits.numberSet as string + " (нужен повторный анализ)")
+            lbRes.text = ((rm_ic_t "удалено полигонов: " "deleted polygons: ") + bits.numberSet as string + (rm_ic_t " (нужен повторный анализ)" " (re-analysis required)"))
             rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
-            lbInfo.text = "объект изменён - проанализируй заново"
+            lbInfo.text = (rm_ic_t "объект изменён - проанализируй заново" "object modified - analyze again")
         )
     )
 
@@ -889,7 +1041,7 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         
         local bits = if isPoly then (polyop.getFaceSelection o) \
                      else (getFaceSelection o)
-        if bits.numberSet == 0 do (lbRes.text = "нет выделенных полигонов"; return false)
+        if bits.numberSet == 0 do (lbRes.text = (rm_ic_t "нет выделенных полигонов" "no polygons selected"); return false)
         
         local cnt = bits.numberSet
         local origNumFaces = if isPoly then (polyop.getNumFaces o) else (meshop.getNumFaces o)
@@ -922,9 +1074,9 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
         
         if isValidNode newObj do select newObj
         
-        lbRes.text = ("отделено: " + (if isValidNode newObj then newObj.name else newName) + " (" + cnt as string + " пол.)")
+        lbRes.text = ((rm_ic_t "отделено: " "detached: ") + (if isValidNode newObj then newObj.name else newName) + " (" + cnt as string + (rm_ic_t " пол.)" " polys)"))
         rm_ic_ef_groups = #(); rm_ic_ef_elems = #(); rm_ic_f2e = #(); rm_ic_e2g = #(); mlbMap = #(); mlb.items = #()
-        lbInfo.text = "объект изменён - проанализируй заново"
+        lbInfo.text = (rm_ic_t "объект изменён - проанализируй заново" "object modified - analyze again")
     )
 
     on roRM_IC_elem rolledUp state do (
@@ -935,8 +1087,6 @@ rollout roRM_IC_elem "3. Одинаковые элементы" width:330
 /*======================================================================
     ГЛАВНОЕ ОКНО СО СТАНДАРТНЫМ СТЕКОМ МОДУЛЕЙ (SUBROLLOUT)
 ======================================================================*/
-global RM_IC_MainRol
-
 rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
 (
     local isDragging = false
@@ -947,7 +1097,8 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
 
     -- [КАСТОМНЫЙ TITLE BAR]
     dotNetControl lbl_title "System.Windows.Forms.Label" pos:[8,7] width:125 height:15
-    dotNetControl lbl_line  "System.Windows.Forms.Label" pos:[135,7] width:170 height:15
+    dotNetControl lbl_line  "System.Windows.Forms.Label" pos:[135,7] width:140 height:15
+    button btn_lang "EN" width:28 height:20 pos:[280,4]
     button btn_close "X" width:20 height:20 pos:[312,4] tooltip:"Close"
     
     -- [СТАНДАРТНЫЙ SUBROLLOUT ДЛЯ ВСЕХ 3 МОДУЛЕЙ]
@@ -961,6 +1112,15 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         setDialogSize RM_IC_MainRol [340, newH]
         sub_holder.height = newH - RM_IC_HOLDER_GAP
         lbl_resize.pos = [0, newH - RM_IC_RESIZE_OFS]
+    )
+
+    fn updateAllLang = (
+        btn_lang.text = if rm_ic_lang == #RU then "EN" else "RU"
+        btn_lang.tooltip = rm_ic_t "Переключить на английский язык (Switch to English)" "Переключить на русский язык (Switch to Russian)"
+        btn_close.tooltip = rm_ic_t "Закрыть RM ImportClean" "Close RM ImportClean"
+        try (roRM_IC_convert.updateLang()) catch()
+        try (roRM_IC_clean.updateLang()) catch()
+        try (roRM_IC_elem.updateLang()) catch()
     )
     
     on RM_IC_MainRol lbuttondown pt do (
@@ -1018,6 +1178,28 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         if isDragging do SetDialogPos RM_IC_MainRol (dragStartDialog + (mouse.screenpos - dragStartScreen))
     )
     
+    on btn_lang pressed do
+    (
+        rm_ic_lang = if rm_ic_lang == #RU then #EN else #RU
+        rm_ic_saveSettings()
+        
+        local r1_open = roRM_IC_convert.open
+        local r2_open = roRM_IC_clean.open
+        local r3_open = roRM_IC_elem.open
+        
+        removeSubRollout sub_holder roRM_IC_convert
+        removeSubRollout sub_holder roRM_IC_clean
+        removeSubRollout sub_holder roRM_IC_elem
+        
+        updateAllLang()
+        
+        addSubRollout sub_holder roRM_IC_convert rolledUp:(not r1_open)
+        addSubRollout sub_holder roRM_IC_clean   rolledUp:(not r2_open)
+        addSubRollout sub_holder roRM_IC_elem    rolledUp:(not r3_open)
+        
+        RM_IC_fitHeight RM_IC_MainRol sub_holder
+    )
+
     on btn_close pressed do destroyDialog RM_IC_MainRol
     
     on RM_IC_MainRol open do (
@@ -1026,12 +1208,12 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         local fStyle = (dotNetClass "System.Drawing.FontStyle").Regular
         local f      = dotNetObject "System.Drawing.Font" "Tahoma" 8 fStyle
         
-        lbl_title.text = "RM ImportClean v1.6"
+        lbl_title.text = "RM ImportClean v1.7"
         lbl_title.ForeColor = cColor
         lbl_title.BackColor = bgCol
         lbl_title.Font = f
         
-        lbl_line.text = ":::::::::::::::::::::::::"
+        lbl_line.text = "::::::::::::::::::::"
         lbl_line.ForeColor = cColor
         lbl_line.BackColor = bgCol
         lbl_line.Font = f
@@ -1039,7 +1221,10 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
         lbl_resize.BackColor = bgCol
         lbl_resize.Cursor = (dotNetClass "System.Windows.Forms.Cursors").SizeNS
         
-        -- Стек модулей (1-й раскрыт, 2-й и 3-й свернуты):
+        -- Сначала обновляем тексты под текущий язык:
+        updateAllLang()
+
+        -- Затем добавляем роллауты в контейнер:
         addSubRollout sub_holder roRM_IC_convert rolledUp:false
         addSubRollout sub_holder roRM_IC_clean   rolledUp:true
         addSubRollout sub_holder roRM_IC_elem    rolledUp:true
@@ -1052,6 +1237,7 @@ rollout RM_IC_MainRol "RM ImportClean" width:340 height:720
 fn RM_IC_openUI =
 (
     try (destroyDialog RM_IC_MainRol) catch()
+    rm_ic_loadSettings()
     createDialog RM_IC_MainRol style:#()
 )
 
